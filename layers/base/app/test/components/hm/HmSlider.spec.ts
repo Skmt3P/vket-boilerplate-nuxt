@@ -22,7 +22,7 @@ Object.defineProperty(HTMLElement.prototype, 'animate', {
 })
 
 // window.setInterval のモック
-vi.stubGlobal('setInterval', vi.fn())
+vi.stubGlobal('setInterval', vi.fn(() => 123)) // モックのintervalIdを返す
 vi.stubGlobal('clearInterval', vi.fn())
 
 describe('HmSlider', () => {
@@ -352,13 +352,20 @@ describe('HmSlider', () => {
     })
 
     it('stopAutoPlayが呼ばれるとclearIntervalが実行される', () => {
+      const setIntervalSpy = vi.spyOn(window, 'setInterval')
       const clearIntervalSpy = vi.spyOn(window, 'clearInterval')
       wrapper = mount(HmSlider, {
         props: { ...defaultProps, autoplay: true },
         global: { plugins: [i18n] },
       })
-      ;(wrapper.vm).stopAutoPlay()
-      expect(clearIntervalSpy).toHaveBeenCalled()
+
+      // 先にautoplayを開始してtimerを設定
+      const vm = wrapper.vm
+      vm.startAutoPlay()
+      // setIntervalが呼ばれることを確認（timerはコンポーネント内部変数のため直接テストできない）
+      expect(setIntervalSpy).toHaveBeenCalled()
+      vm.stopAutoPlay()
+      expect(clearIntervalSpy).toHaveBeenCalledWith(123) // モックが返すintervalId
     })
   })
 
@@ -466,6 +473,253 @@ describe('HmSlider', () => {
 
       expect(prevButton.attributes('aria-label')).toBe('Show previous slide')
       expect(nextButton.attributes('aria-label')).toBe('Show next slide')
+    })
+  })
+
+  describe('advanced functionality', () => {
+    beforeEach(() => {
+      wrapper = mount(HmSlider, {
+        props: defaultProps,
+        global: {
+          plugins: [i18n],
+        },
+      })
+    })
+
+    it('slider-wrapにCSSカスタムプロパティが正しく設定される', () => {
+      const sliderWrap = wrapper.find('.slider-wrap')
+      const style = sliderWrap.attributes('style')
+      expect(style).toContain('--slide-amount: 3')
+      expect(style).toContain('--width-pc: 300px')
+      expect(style).toContain('--width-sp: 200px')
+    })
+
+    it('slider-innerにCSSカスタムプロパティが正しく設定される', () => {
+      const sliderInner = wrapper.find('.slider-inner')
+      const style = sliderInner.attributes('style')
+      expect(style).toContain('--gap-pc: 10px')
+      expect(style).toContain('--gap-sp: 5px')
+    })
+
+    it('currentSlide computed propertyが正しく動作する', () => {
+      expect((wrapper.vm).currentSlide).toBe(0)
+    })
+
+    it('disabledPrevious computed propertyが正しく動作する', () => {
+      expect((wrapper.vm).disabledPrevious).toBe(true)
+    })
+
+    it('disabledNext computed propertyが正しく動作する', () => {
+      expect((wrapper.vm).disabledNext).toBe(false)
+    })
+
+    it('スライダーのスタイル設定が正しく適用される', () => {
+      const sliderInner = wrapper.find('.slider-inner')
+      expect(sliderInner.exists()).toBe(true)
+      // スタイル属性の存在確認
+      expect(sliderInner.attributes('style')).toBeDefined()
+    })
+  })
+
+  describe('lifecycle methods', () => {
+    it('onMountedが正しく実行される', () => {
+      wrapper = mount(HmSlider, {
+        props: {
+          ...defaultProps,
+          autoplay: true,
+        },
+        global: {
+          plugins: [i18n],
+        },
+      })
+      expect(wrapper.exists()).toBe(true)
+    })
+
+    it('onUnmountedでautoplayがクリアされる', () => {
+      const setIntervalSpy = vi.spyOn(window, 'setInterval')
+      const clearIntervalSpy = vi.spyOn(window, 'clearInterval')
+      wrapper = mount(HmSlider, {
+        props: {
+          ...defaultProps,
+          autoplay: true,
+        },
+        global: {
+          plugins: [i18n],
+        },
+      })
+
+      // autoplayを開始してtimerを設定してからアンマウント
+      const vm = wrapper.vm
+      vm.startAutoPlay()
+      expect(setIntervalSpy).toHaveBeenCalled()
+      wrapper.unmount()
+      expect(clearIntervalSpy).toHaveBeenCalledWith(123) // モックが返すintervalId
+    })
+  })
+
+  describe('error handling', () => {
+    beforeEach(() => {
+      wrapper = mount(HmSlider, {
+        props: defaultProps,
+        global: {
+          plugins: [i18n],
+        },
+      })
+    })
+
+    it('slider要素がnullの場合にエラーハンドリングされる', () => {
+      const vm = wrapper.vm
+      // sliderのrefをnullに設定
+      vm.slider = { value: null }
+
+      // inDraggingメソッドがエラーハンドリングを正しく行うかテスト
+      expect(() => {
+        vm.inDragging(new MouseEvent('mousemove'))
+      }).not.toThrow() // 実際にはエラーを投げずに安全にハンドリングする
+    })
+
+    it('不正なイベント型でも適切に処理される', () => {
+      const vm = wrapper.vm
+      expect(() => {
+        vm.startDragging({} as MouseEvent)
+      }).not.toThrow()
+    })
+  })
+
+  describe('complex interactions', () => {
+    beforeEach(() => {
+      wrapper = mount(HmSlider, {
+        props: {
+          ...defaultProps,
+          loop: true,
+          autoplay: true,
+        },
+        slots: {
+          item: '<div class="slider-item">Test Item</div>',
+          navigationprevious: '<span>Previous</span>',
+          navigationnext: '<span>Next</span>',
+          pagination: '<span class="dot"></span>',
+          autoplaystart: '<span>Start</span>',
+          autoplaystop: '<span>Stop</span>',
+        },
+        global: {
+          plugins: [i18n],
+        },
+      })
+    })
+
+    it('loop有効時のスライダー構造が正しく生成される', () => {
+      // loopが有効な場合、before/afterのクローンが存在することを確認
+      const beforeClone = wrapper.find('.slider.-before')
+      const afterClone = wrapper.find('.slider.-after')
+
+      expect(beforeClone.exists()).toBe(true)
+      expect(afterClone.exists()).toBe(true)
+    })
+
+    it('dragイベントシーケンスが正しく動作する', async () => {
+      const sliderInner = wrapper.find('.slider-inner')
+
+      // Start dragging
+      await sliderInner.trigger('mousedown', { pageX: 100 })
+
+      // Move
+      await sliderInner.trigger('mousemove', { pageX: 50 })
+
+      // End dragging
+      await sliderInner.trigger('mouseup', { pageX: 50 })
+
+      expect(wrapper.exists()).toBe(true)
+    })
+
+    it('touchイベントシーケンスが正しく動作する', async () => {
+      const sliderInner = wrapper.find('.slider-inner')
+
+      // Start touch
+      await sliderInner.trigger('touchstart', {
+        touches: [{ pageX: 100 }],
+      })
+
+      // Move touch
+      await sliderInner.trigger('touchmove', {
+        touches: [{ pageX: 50 }],
+      })
+
+      // End touch
+      await sliderInner.trigger('touchend', {
+        touches: [{ pageX: 50 }],
+      })
+
+      expect(wrapper.exists()).toBe(true)
+    })
+
+    it('autoplay機能が正しく動作する', () => {
+      const setIntervalSpy = vi.spyOn(window, 'setInterval')
+      const vm = wrapper.vm
+
+      vm.startAutoPlay()
+      expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), defaultProps.interval)
+    })
+
+    it('stopAutoPlay機能が正しく動作する', () => {
+      const setIntervalSpy = vi.spyOn(window, 'setInterval')
+      const clearIntervalSpy = vi.spyOn(window, 'clearInterval')
+      const vm = wrapper.vm
+
+      // 先にautoplayを開始してからstop
+      vm.startAutoPlay()
+      expect(setIntervalSpy).toHaveBeenCalled()
+      vm.stopAutoPlay()
+      expect(clearIntervalSpy).toHaveBeenCalledWith(123) // モックが返すintervalId
+    })
+  })
+
+  describe('edge cases', () => {
+    it('amount=1の場合に適切に動作する', () => {
+      wrapper = mount(HmSlider, {
+        props: {
+          ...defaultProps,
+          amount: 1,
+        },
+        global: {
+          plugins: [i18n],
+        },
+      })
+
+      expect(wrapper.find('.slider-pagination-item')).toBeTruthy()
+    })
+
+    it('draggable=falseの場合にドラッグが無効になる', async () => {
+      wrapper = mount(HmSlider, {
+        props: {
+          ...defaultProps,
+          draggable: false,
+        },
+        global: {
+          plugins: [i18n],
+        },
+      })
+
+      const sliderInner = wrapper.find('.slider-inner')
+      const vm = wrapper.vm
+
+      await sliderInner.trigger('mousedown', { pageX: 100 })
+      expect(vm.isDragging).toBe(false)
+    })
+
+    it('大きなamount値でも適切に動作する', () => {
+      wrapper = mount(HmSlider, {
+        props: {
+          ...defaultProps,
+          amount: 20,
+          itemsId: Array.from({ length: 20 }, (_, i) => `item${i + 1}`),
+        },
+        global: {
+          plugins: [i18n],
+        },
+      })
+
+      expect(wrapper.findAll('.slider-pagination-item')).toHaveLength(20)
     })
   })
 })

@@ -160,6 +160,7 @@ describe('useToast composable', () => {
     it('$toastが存在しない場合でもエラーにならない', () => {
       vi.mocked(useNuxtApp).mockReturnValue({
         $toast: undefined,
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
 
@@ -175,6 +176,7 @@ describe('useToast composable', () => {
 
       expect(() => {
         // 型安全でないが、ランタイムでのテスト
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         addToast('Test', 'invalid' as any)
       }).not.toThrow()

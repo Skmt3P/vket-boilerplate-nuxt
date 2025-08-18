@@ -523,6 +523,13 @@ onMounted(() => {
     startAutoPlay()
   }
 })
+
+// スライダーのクリーンアップ
+onUnmounted(() => {
+  if (timer !== undefined) {
+    clearInterval(timer)
+  }
+})
 </script>
 
 <style lang="scss" scoped>

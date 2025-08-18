@@ -1,7 +1,5 @@
 import { vi } from 'vitest'
 
-// Type declarations for global mocks - range and useSlots are handled by auto-imports
-
 // Global mock for all icon imports
 vi.mock('~icons/ri/close-line', () => ({
   default: {
@@ -11,40 +9,65 @@ vi.mock('~icons/ri/close-line', () => ({
   },
 }))
 
-// Mock Nuxt composables using vi.mock to avoid conflicts with auto-imports
-vi.mock('#app/composables/useI18n', () => ({
-  useI18n: vi.fn(() => ({
-    t: vi.fn((key: string) => {
-      const messages: Record<string, string> = {
-        next: 'Next',
-        prev: 'Prev',
-      }
-      return messages[key] || key
-    }),
-    locale: { value: 'ja' },
-  })),
-}))
-
-vi.mock('#app/composables/useRoute', () => ({
-  useRoute: vi.fn(() => ({
-    path: '/test',
-    query: { page: '1' },
-  })),
-}))
-
-vi.mock('vue', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('vue')>()
-  return {
-    ...actual,
-    nextTick: vi.fn().mockResolvedValue(undefined),
-  }
+// Comprehensive Nuxt composables mocks
+const createI18nMock = () => ({
+  t: (key: string) => {
+    const messages: Record<string, string> = {
+      next: 'Next',
+      prev: 'Prev',
+    }
+    return messages[key] || key
+  },
+  locale: { value: 'ja' },
 })
 
-// Global utility functions for tests - range and useSlots handled by auto-imports
+const createRouteMock = () => ({
+  path: '/test',
+  query: { page: '1' },
+})
+
+// Global composable mocks
+vi.stubGlobal('useI18n', createI18nMock)
+vi.stubGlobal('useRoute', createRouteMock)
+
+// Mock #imports completely
+vi.mock('#imports', () => ({
+  useI18n: createI18nMock,
+  useRoute: createRouteMock,
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+  }),
+}))
+
+// Mock @nuxtjs/i18n runtime
+vi.mock('@nuxtjs/i18n', () => ({
+  useI18n: createI18nMock,
+}))
+
+// Mock @nuxtjs/i18n/dist/runtime/composables
+vi.mock('@nuxtjs/i18n', () => ({
+  useI18n: createI18nMock,
+}))
+
+// Mock @nuxtjs/i18n/dist/runtime/composables/index.js
+vi.mock('@nuxtjs/i18n', () => ({
+  useI18n: createI18nMock,
+}))
+
+// Mock #app
+vi.mock('#app', () => ({
+  useI18n: createI18nMock,
+  useRoute: createRouteMock,
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+  }),
+}))
 
 // HTMLDialogElement mock for jsdom
 if (!global.HTMLDialogElement) {
-  global.HTMLDialogElement = class HTMLDialogElement extends HTMLElement {
+  class MockHTMLDialogElement extends HTMLElement {
     open = false
     returnValue = ''
 
@@ -69,5 +92,15 @@ if (!global.HTMLDialogElement) {
     override removeEventListener(_event: string, _callback: (...args: unknown[]) => void) {
       // Mock implementation
     }
+  }
+
+  global.HTMLDialogElement = MockHTMLDialogElement as unknown as {
+    new (): HTMLDialogElement
+    prototype: HTMLDialogElement
+  }
+
+  // Make sure it's available on window too
+  if (typeof window !== 'undefined') {
+    window.HTMLDialogElement = MockHTMLDialogElement
   }
 }

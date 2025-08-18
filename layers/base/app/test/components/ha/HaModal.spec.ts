@@ -45,7 +45,7 @@ describe('HaModal', () => {
         global: {
           plugins: [i18n],
         },
-      })
+      }) as HaModalWrapper
     })
 
     it('開くボタンがレンダリングされる', () => {
@@ -85,7 +85,7 @@ describe('HaModal', () => {
         global: {
           plugins: [i18n],
         },
-      })
+      }) as HaModalWrapper
     })
 
     it('開くボタンをクリックするとモーダルが開く', async () => {
@@ -149,7 +149,7 @@ describe('HaModal', () => {
         global: {
           plugins: [i18n],
         },
-      })
+      }) as HaModalWrapper
 
       // モーダルを開く
       await wrapper.find('.open').trigger('click')
@@ -195,7 +195,7 @@ describe('HaModal', () => {
         global: {
           plugins: [i18n],
         },
-      })
+      }) as HaModalWrapper
 
       // モーダルを開く
       await wrapper.find('.open').trigger('click')
@@ -218,7 +218,8 @@ describe('HaModal', () => {
       await nextTick()
 
       // close要素を強制的にnullに設定
-      wrapper.vm.close = null
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      wrapper.vm.close = null as any
 
       // handleEndFocus関数を直接テストする（同期的にエラーをキャッチ）
       expect(() => {
@@ -236,7 +237,7 @@ describe('HaModal', () => {
         global: {
           plugins: [i18n],
         },
-      })
+      }) as HaModalWrapper
 
       const closeButton = wrapper.find('.close')
       expect(closeButton.attributes('aria-label')).toBe('モーダルを閉じる')
@@ -259,7 +260,7 @@ describe('HaModal', () => {
         global: {
           plugins: [enI18n],
         },
-      })
+      }) as HaModalWrapper
 
       const closeButton = wrapper.find('.close')
       expect(closeButton.attributes('aria-label')).toBe('Close the dialog')
@@ -275,7 +276,7 @@ describe('HaModal', () => {
         global: {
           plugins: [i18n],
         },
-      })
+      }) as HaModalWrapper
 
       const openButton = wrapper.find('.open')
       const modal = wrapper.find('.ha-modal')
@@ -294,7 +295,7 @@ describe('HaModal', () => {
         global: {
           plugins: [i18n],
         },
-      })
+      }) as HaModalWrapper
 
       const openButton = wrapper.find('.open')
       expect(openButton.text()).toContain('モーダルを開く')
@@ -308,7 +309,7 @@ describe('HaModal', () => {
         global: {
           plugins: [i18n],
         },
-      })
+      }) as HaModalWrapper
 
       const modal = wrapper.find('.modal')
       expect(modal.text()).toContain('モーダルの中身')
@@ -324,7 +325,7 @@ describe('HaModal', () => {
         global: {
           plugins: [i18n],
         },
-      })
+      }) as HaModalWrapper
     })
 
     it('開くボタンのaria-expandedが初期状態でfalse', () => {

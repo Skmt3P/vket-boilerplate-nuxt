@@ -1,10 +1,10 @@
-import path from 'path'
 import Vue from '@vitejs/plugin-vue'
+import path from 'path'
 import AutoImport from 'unplugin-auto-import/vite'
-import Components from 'unplugin-vue-components/vite'
 import Icons from 'unplugin-icons/vite'
-import { defineConfig } from 'vitest/config'
+import Components from 'unplugin-vue-components/vite'
 import svgLoader from 'vite-svg-loader'
+import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   plugins: [
@@ -123,10 +123,17 @@ export default defineConfig({
         'app/plugins/**',
         'app/middleware/**',
         'app/layouts/**',
-        'app/test/**'
+        'app/test/**',
+        'app/app.vue',
       ],
     },
     setupFiles: ['./app/test/setup.ts'],
+    server: {
+      deps: {
+        external: ['@nuxtjs/i18n'],
+        inline: ['@nuxtjs/i18n/dist/runtime/composables']
+      }
+    },
   },
   resolve: {
     alias: {
@@ -138,6 +145,7 @@ export default defineConfig({
         '../../node_modules/@nuxtjs/i18n/dist/runtime/composables',
       ),
       '#imports': path.resolve(__dirname, 'app/test/mocks/imports.ts'),
+      '@nuxtjs/i18n/dist/runtime/composables/index.js': path.resolve(__dirname, 'app/test/mocks/imports.ts'),
       '@@/public/images/no-image.png': '/images/no-image.png',
     },
   },

@@ -84,6 +84,7 @@ describe('use-strict-i18n.ts', () => {
       const options = {
         locale: 'ja' as const,
         fallbackLocale: 'en' as const,
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         messages: { ja: {}, en: {} } as any,
       }
@@ -127,7 +128,7 @@ describe('use-strict-i18n.ts', () => {
       const { useStrictI18n } = await import('#base/app/composables/use-strict-i18n')
       const options1 = { locale: 'ja' as const }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const options2 = { locale: 'en' as any, fallbackLocale: 'ja' as any }
+      const options2 = { locale: 'en' as any, fallbackLocale: 'ja' as const }
 
       useStrictI18n(options1)
       useStrictI18n(options2)
