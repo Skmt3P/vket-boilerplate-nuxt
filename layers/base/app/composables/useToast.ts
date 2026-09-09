@@ -2,7 +2,9 @@ import { useNuxtApp } from 'nuxt/app'
 import { InjectionKey } from 'vue'
 
 export const useToast = () => {
-  const { $toast } = useNuxtApp()
+  const { $toast } = useNuxtApp() as {
+    $toast?: typeof import('vue3-toastify').toast
+  }
 
   /**
    * toast追加

@@ -12,7 +12,7 @@
     "@nuxtjs/robots": "^6.2.0",
     "@vueuse/nuxt": "^14.4.0",
     "dayjs": "^1.11.23",
-    "nuxt": "4.4.8",
+    "nuxt": "4.5.1",
     "ress": "^6.0.0",
     "universal-cookie": "^8.1.2",
     "unplugin-icons": "^23.0.1",
@@ -55,8 +55,5 @@
     "layers/**/*.+(js|ts|tsx|vue)": [
       "eslint --cache --cache-strategy content"
     ]
-  },
-  "patchedDependencies": {
-    "@nuxt/vite-builder@4.4.4": "patches/@nuxt%2Fvite-builder@4.4.4.patch"
   }
 }
