@@ -101,368 +101,6 @@ layers/
 
 # Files
 
-## File: layers/base/app/test/composables/node-with-element-environment.ts
-````typescript
-import type { Environment } from 'vitest/environments'
-import { builtinEnvironments } from 'vitest/environments'
-
-export default <Environment>{
-  ...builtinEnvironments.node,
-  name: 'node-with-element',
-  viteEnvironment: 'ssr',
-  async setup(global, options) {
-    const result = await builtinEnvironments.node.setup(global, options)
-    Object.defineProperty(global, 'HTMLElement', {
-      configurable: true,
-      value: class HTMLElement {
-        readonly nodeElement = true
-      },
-    })
-    return result
-  },
-}
-````
-
-## File: layers/base/app/test/composables/use-strict-i18n.spec.ts
-````typescript
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  I18nTKeyMissingError,
-  useStrictI18n,
-} from '#base/app/composables/use-strict-i18n'
-
-const { mockUseI18n } = vi.hoisted(() => ({
-  mockUseI18n: vi.fn(),
-}))
-
-vi.mock('vue-i18n', async importOriginal => ({
-  ...await importOriginal<typeof import('vue-i18n')>(),
-  useI18n: mockUseI18n,
-}))
-
-describe('useStrictI18n', () => {
-  beforeEach(() => {
-    mockUseI18n.mockReset()
-  })
-
-  it('preserves options and returns the useI18n result', () => {
-    const i18n = { t: vi.fn(), locale: { value: 'ja' } }
-    mockUseI18n.mockReturnValue(i18n)
-
-    const result = useStrictI18n({ locale: 'ja', fallbackLocale: 'en' })
-
-    expect(result).toBe(i18n)
-    expect(mockUseI18n).toHaveBeenCalledWith({
-      locale: 'ja',
-      fallbackLocale: 'en',
-      missing: expect.any(Function),
-    })
-  })
-
-  it('supports omitted options and throws a descriptive missing-key error', () => {
-    useStrictI18n()
-    const options = mockUseI18n.mock.calls[0]?.[0]
-
-    expect(() => options.missing('en', 'missing.key')).toThrow(
-      new I18nTKeyMissingError('key \'missing.key\' is not found in locale \'en\''),
-    )
-  })
-})
-````
-
-## File: layers/base/app/test/composables/useCustomIntersectionObserver.spec.ts
-````typescript
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import useCustomIntersectionObserver from '#base/app/composables/useCustomIntersectionObserver'
-
-type ObserverCallback = ConstructorParameters<typeof IntersectionObserver>[0]
-
-const callbacks: ObserverCallback[] = []
-const observe = vi.fn()
-const unobserve = vi.fn()
-const IntersectionObserverMock = vi.fn(class {
-  disconnect = vi.fn()
-  observe = observe
-  takeRecords = vi.fn()
-  unobserve = unobserve
-
-  constructor(callback: ObserverCallback) {
-    callbacks.push(callback)
-  }
-})
-
-const entry = (target: Element, isIntersecting: boolean) => ({
-  target,
-  isIntersecting,
-}) as IntersectionObserverEntry
-
-beforeEach(() => {
-  callbacks.length = 0
-  observe.mockClear()
-  unobserve.mockClear()
-  IntersectionObserverMock.mockClear()
-  vi.useFakeTimers()
-  vi.stubGlobal('IntersectionObserver', IntersectionObserverMock)
-})
-
-afterEach(() => {
-  vi.useRealTimers()
-  vi.unstubAllGlobals()
-})
-
-describe('doObserve', () => {
-  it('observes with defaults and performs the default delayed in action', () => {
-    const element = document.createElement('div')
-    const inAction = vi.fn()
-
-    useCustomIntersectionObserver().doObserve([{ element, inAction }])
-    callbacks[0]?.([entry(element, true)], {} as IntersectionObserver)
-
-    expect(IntersectionObserverMock).toHaveBeenCalledWith(
-      expect.any(Function),
-      { root: null, rootMargin: '0px', threshold: 0.1 },
-    )
-    expect(observe).toHaveBeenCalledWith(element)
-    expect(inAction).not.toHaveBeenCalled()
-    vi.advanceTimersByTime(300)
-    expect(inAction).toHaveBeenCalledOnce()
-    expect(element.classList.contains('-intersecting')).toBe(true)
-    expect(unobserve).not.toHaveBeenCalled()
-  })
-
-  it('supports custom options, staggered delay, class, once, and exit action', () => {
-    const first = document.createElement('div')
-    const second = document.createElement('div')
-    const firstIn = vi.fn()
-    const secondIn = vi.fn()
-    const outAction = vi.fn()
-    const options = { root: first, rootMargin: '2px', threshold: 1 }
-
-    useCustomIntersectionObserver().doObserve([
-      { element: first, once: true, delay: 0, inAction: firstIn },
-      {
-        element: second,
-        once: true,
-        delay: 20,
-        inAction: secondIn,
-        outAction,
-        intersectingClass: 'visible',
-      },
-    ], options)
-
-    callbacks[0]?.([entry(first, true)], {} as IntersectionObserver)
-    callbacks[1]?.([entry(second, true)], {} as IntersectionObserver)
-    vi.advanceTimersByTime(0)
-    expect(firstIn).toHaveBeenCalledOnce()
-    expect(unobserve).toHaveBeenCalledWith(first)
-    expect(secondIn).not.toHaveBeenCalled()
-    vi.advanceTimersByTime(20)
-    expect(secondIn).toHaveBeenCalledOnce()
-    expect(second.classList.contains('visible')).toBe(true)
-    expect(unobserve).toHaveBeenCalledWith(second)
-
-    callbacks[1]?.([entry(second, false)], {} as IntersectionObserver)
-    expect(outAction).toHaveBeenCalledOnce()
-    expect(second.classList.contains('visible')).toBe(false)
-  })
-
-  it('allows omitted actions when leaving the viewport', () => {
-    const element = document.createElement('div')
-    element.classList.add('-intersecting')
-    useCustomIntersectionObserver().doObserve([{ element }])
-
-    callbacks[0]?.([entry(element, false)], {} as IntersectionObserver)
-
-    expect(element.classList.contains('-intersecting')).toBe(false)
-  })
-})
-````
-
-## File: layers/base/app/test/composables/useLocale.server.spec.ts
-````typescript
-// @vitest-environment ./app/test/composables/node-with-element-environment.ts
-
-import { expect, it, vi } from 'vitest'
-import { ref } from 'vue'
-import { useLocale } from '#base/app/composables/useLocale'
-
-vi.mock('nuxt/app', async importOriginal => ({
-  ...await importOriginal<typeof import('nuxt/app')>(),
-  useRequestHeaders: vi.fn(() => ({
-    'accept-language': 'en-US,en;q=0.9',
-  })),
-}))
-
-vi.mock('#base/app/utils/storage-control', async importOriginal => ({
-  ...await importOriginal<typeof import('#base/app/utils/storage-control')>(),
-  getSingleCookieValue: vi.fn(() => null),
-}))
-
-vi.mock('vue-i18n', () => ({
-  createI18n: vi.fn(() => ({ global: {}, mode: 'composition' })),
-  useI18n: vi.fn(() => ({ locale: ref('ja') })),
-}))
-
-vi.mock('@vee-validate/i18n', () => ({ setLocale: vi.fn() }))
-
-it('uses the request language during server rendering', () => {
-  expect(useLocale().getDefaultLanguage()).toBe('en')
-})
-````
-
-## File: layers/base/app/test/config/base-config.spec.ts
-````typescript
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getAppConfigOfEnvType } from '#base/config/appConfig'
-import {
-  allEnvTypes,
-  ensureEnvType,
-  isEnvType,
-  readEnvType,
-} from '#base/config/models/EnvType'
-
-describe('EnvType', () => {
-  it.each(allEnvTypes)('accepts %s', (envType) => {
-    expect(isEnvType(envType)).toBe(true)
-    expect(() => ensureEnvType(envType)).not.toThrow()
-    expect(readEnvType({ VITE_OUTPUT_ENV: envType })).toBe(envType)
-  })
-
-  it('rejects values outside EnvType', () => {
-    expect(isEnvType('preview')).toBe(false)
-    expect(isEnvType(undefined)).toBe(false)
-    expect(() => ensureEnvType('preview')).toThrow(
-      new TypeError('Not an EnvType.'),
-    )
-    expect(() => readEnvType({ VITE_OUTPUT_ENV: 'preview' })).toThrow(TypeError)
-  })
-
-  it('defaults to local and reports a missing variable', () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
-    expect(readEnvType({})).toBe('local')
-    expect(error).toHaveBeenCalledWith('No VITE_OUTPUT_ENV is set.')
-  })
-})
-
-describe('appConfig', () => {
-  it.each(allEnvTypes)('builds %s config', (envType) => {
-    expect(getAppConfigOfEnvType(envType, { SAMPLE: 'value' })).toEqual({})
-  })
-})
-
-describe('runtimeConfig', () => {
-  afterEach(() => {
-    vi.unstubAllEnvs()
-    vi.resetModules()
-  })
-
-  it.each([
-    ['local', 'http://localhost:3000', 'http://localhost:3003'],
-    ['development', 'http://localhost:3000', undefined],
-    ['staging', '', undefined],
-    ['production', '', undefined],
-  ] as const)('builds %s config', async (envType, url, httpBinUrl) => {
-    const { getRuntimeConfigOfEnvType } = await import('#base/config/runtimeConfig')
-    const config = getRuntimeConfigOfEnvType(envType, {})
-
-    expect(config.public.outputEnv).toBe(envType)
-    expect(config.public.url).toBe(url)
-    expect(config.public.baseUrl).toBe(url)
-    expect(config.public.apiPrefix).toBe('/api/v1')
-    expect(
-      'httpBinUrl' in config.public ? config.public.httpBinUrl : undefined,
-    ).toBe(httpBinUrl)
-  })
-
-  it('uses NUXT_API_PREFIX when supplied', async () => {
-    vi.stubEnv('NUXT_API_PREFIX', '/custom')
-    vi.resetModules()
-    const { getRuntimeConfigOfEnvType } = await import('#base/config/runtimeConfig')
-
-    expect(getRuntimeConfigOfEnvType('local', {}).public.apiPrefix).toBe('/custom')
-  })
-})
-````
-
-## File: layers/base/app/test/i18n/i18n-config.spec.ts
-````typescript
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { cookieValue } = vi.hoisted(() => ({
-  cookieValue: { value: undefined as string | undefined },
-}))
-
-vi.mock('universal-cookie', () => ({
-  default: class CookiesMock {
-    get() {
-      return cookieValue.value
-    }
-  },
-}))
-
-const originalClient = Object.getOwnPropertyDescriptor(process, 'client')
-
-const loadConfig = async ({
-  client,
-  language,
-  cookie,
-}: {
-  client: boolean
-  language?: string
-  cookie?: string
-}) => {
-  Object.defineProperty(process, 'client', {
-    configurable: true,
-    value: client,
-  })
-  cookieValue.value = cookie
-  vi.stubGlobal('navigator', language === undefined ? undefined : { language })
-  vi.resetModules()
-  return import('#base/i18n/i18n.config')
-}
-
-beforeEach(() => {
-  cookieValue.value = undefined
-})
-
-afterEach(() => {
-  vi.unstubAllGlobals()
-  if (originalClient) {
-    Object.defineProperty(process, 'client', originalClient)
-  } else {
-    Reflect.deleteProperty(process, 'client')
-  }
-  vi.resetModules()
-})
-
-describe('i18n config locale selection', () => {
-  it.each([
-    [{ client: false, language: 'en-US' }, 'ja'],
-    [{ client: true, language: 'fr-FR', cookie: 'ja' }, 'ja'],
-    [{ client: true, language: 'ja-JP', cookie: 'en' }, 'en'],
-    [{ client: true, language: 'ja-JP' }, 'ja'],
-    [{ client: true, language: 'en-US' }, 'en'],
-    [{ client: true, language: 'fr-FR' }, 'ja'],
-    [{ client: true }, 'ja'],
-  ] as const)('selects $1 for %o', async (input, expected) => {
-    const config = await loadConfig(input)
-    const detectBrowserLanguage
-      = config.nuxtI18nOptions.detectBrowserLanguage
-    if (!detectBrowserLanguage || typeof detectBrowserLanguage !== 'object') {
-      throw new TypeError('detectBrowserLanguage must be configured')
-    }
-
-    expect(config.nuxtI18nOptions.defaultLocale).toBe(expected)
-    expect(detectBrowserLanguage.fallbackLocale).toBe(
-      expected,
-    )
-    expect(config.default.locale).toBe(expected)
-    expect(config.default.messages).toHaveProperty('ja')
-    expect(config.default.messages).toHaveProperty('en')
-  })
-})
-````
-
 ## File: layers/base/app/test/mock-icons/ri/close-line.js
 ````javascript
 export default {
@@ -1158,6 +796,924 @@ import { VueWrapper } from '@vue/test-utils'
 export type AnyVueWrapper = VueWrapper<any> // eslint-disable-line @typescript-eslint/no-explicit-any
 ````
 
+## File: layers/base/app/test/utils/types/types.spec.ts
+````typescript
+import { IsEqual } from 'type-fest'
+import { describe, test } from 'vitest'
+import { Nullable, Overwrite, ValueOf } from '#base/app/utils/types/types'
+
+describe('proof', () => {
+  test('Nullable', () => {
+    const _proof: IsEqual<
+      Nullable<{ a: number, b: number }, 'a'>,
+      { a: number | null, b: number }
+    > = true
+  })
+
+  test('ValueOf', () => {
+    const _proof: IsEqual<
+      ValueOf<{ a: number, b: string, c: boolean }>,
+      number | string | boolean
+    > = true
+  })
+
+  test('Overwrite', () => {
+    const _proof: IsEqual<
+      Overwrite<{ a: number, b: string }, { a: boolean }>,
+      { a: boolean } & { b: string }
+    > = true
+  })
+})
+````
+
+## File: layers/base/app/test/utils/constant.spec.ts
+````typescript
+import { describe, expect, it } from 'vitest'
+
+describe('constant.ts', () => {
+  it('定数ファイルのテスト - 実装待ち', async () => {
+    // constant.tsの内容を確認してから実装
+    const constantModule = await import('#base/app/utils/constant')
+
+    // 基本的な確認
+    expect(constantModule).toBeDefined()
+
+    /*
+     * 定数が存在することを確認
+     * 実際の定数に応じてテストケースを追加
+     */
+  })
+})
+````
+
+## File: layers/base/app/test/utils/i18n.spec.ts
+````typescript
+import { test } from 'vitest'
+
+test('関数のexportがないので、#base/app/utils/i18nモジュールへのテストはなし', () => {})
+````
+
+## File: layers/base/app/test/utils/object.spec.ts
+````typescript
+import { describe, test, expect } from 'vitest'
+import { writableClone } from '#base/app/utils/object'
+
+describe('writableClone', () => {
+  test('copies usual values', () => {
+    const x = { a: 42 } as const
+    const y = writableClone(x)
+    y.a = 42 // 代入可能になっている
+    expect(y).toStrictEqual(x)
+  })
+
+  test('breaks type safety if copying unusual values', () => {
+    const xs: undefined[] = [undefined]
+    const ys: undefined[] = writableClone(xs)
+    const y: undefined = ys[0]
+    expect(y).toBe(null) // undefined型の変数にnullが入っている
+
+    // その他、nullになるもの。
+    expect(writableClone([NaN])).not.toStrictEqual([NaN])
+    expect(writableClone([Infinity])).not.toStrictEqual([Infinity])
+  })
+})
+````
+
+## File: layers/base/app/test/utils/response.spec.ts
+````typescript
+import { describe, expect, it } from 'vitest'
+import { z } from 'zod/v3'
+import {
+  statusSchema,
+  pagingSchema,
+  makeResponseSchema,
+  isFetchError,
+  fetchErrorSchema,
+  ensureAsyncDataOf,
+  requireAsyncDataOf,
+  type ResponseStatus,
+  type Paging,
+} from '#base/app/utils/response'
+
+describe('response.ts', () => {
+  describe('statusSchema', () => {
+    it('okステータスを正しく検証する', () => {
+      const result = statusSchema.safeParse('ok')
+      expect(result.success).toBe(true)
+      expect(result.data).toBe('ok')
+    })
+
+    it('ngステータスを正しく検証する', () => {
+      const result = statusSchema.safeParse('ng')
+      expect(result.success).toBe(true)
+      expect(result.data).toBe('ng')
+    })
+
+    it('無効なステータスを拒否する', () => {
+      const result = statusSchema.safeParse('invalid')
+      expect(result.success).toBe(false)
+    })
+
+    it('文字列以外を拒否する', () => {
+      expect(statusSchema.safeParse(123).success).toBe(false)
+      expect(statusSchema.safeParse(null).success).toBe(false)
+      expect(statusSchema.safeParse(undefined).success).toBe(false)
+    })
+  })
+
+  describe('pagingSchema', () => {
+    it('正しいページング情報を検証する', () => {
+      const validPaging = {
+        limit: 10,
+        offset: 0,
+        total: 100,
+      }
+      const result = pagingSchema.safeParse(validPaging)
+      expect(result.success).toBe(true)
+      expect(result.data).toEqual(validPaging)
+    })
+
+    it('必須フィールドが不足している場合エラーを返す', () => {
+      expect(pagingSchema.safeParse({ limit: 10, offset: 0 }).success).toBe(false)
+      expect(pagingSchema.safeParse({ limit: 10, total: 100 }).success).toBe(false)
+      expect(pagingSchema.safeParse({ offset: 0, total: 100 }).success).toBe(false)
+    })
+
+    it('数値以外の値を拒否する', () => {
+      const invalidPaging = {
+        limit: '10',
+        offset: 0,
+        total: 100,
+      }
+      expect(pagingSchema.safeParse(invalidPaging).success).toBe(false)
+    })
+
+    it('空オブジェクトを拒否する', () => {
+      expect(pagingSchema.safeParse({}).success).toBe(false)
+    })
+  })
+
+  describe('makeResponseSchema', () => {
+    it('基本的なレスポンススキーマを作成する', () => {
+      const schema = makeResponseSchema({
+        data: z.string(),
+        message: z.string(),
+      })
+
+      const validResponse = {
+        status: 'ok',
+        data: 'test data',
+        message: 'success',
+      }
+
+      const result = schema.safeParse(validResponse)
+      expect(result.success).toBe(true)
+      expect(result.data).toEqual(validResponse)
+    })
+
+    it('statusフィールドが必須である', () => {
+      const schema = makeResponseSchema({
+        data: z.string(),
+      })
+
+      const invalidResponse = {
+        data: 'test data',
+        // status missing
+      }
+
+      expect(schema.safeParse(invalidResponse).success).toBe(false)
+    })
+
+    it('複雑なスキーマオブジェクトを処理する', () => {
+      const schema = makeResponseSchema({
+        users: z.array(z.object({
+          id: z.number(),
+          name: z.string(),
+        })),
+        paging: pagingSchema,
+      })
+
+      const validResponse = {
+        status: 'ok',
+        users: [
+          { id: 1, name: 'Alice' },
+          { id: 2, name: 'Bob' },
+        ],
+        paging: {
+          limit: 10,
+          offset: 0,
+          total: 2,
+        },
+      }
+
+      const result = schema.safeParse(validResponse)
+      expect(result.success).toBe(true)
+    })
+
+    it('空のスキーマオブジェクトでも動作する', () => {
+      const schema = makeResponseSchema({})
+
+      const validResponse = {
+        status: 'ng',
+      }
+
+      const result = schema.safeParse(validResponse)
+      expect(result.success).toBe(true)
+      expect(result.data).toEqual(validResponse)
+    })
+  })
+
+  describe('isFetchError', () => {
+    it('FetchErrorオブジェクトを正しく識別する', () => {
+      const fetchError = {
+        name: 'FetchError',
+        message: 'Network error',
+        cause: 'Connection failed',
+      }
+
+      expect(isFetchError(fetchError)).toBe(true)
+    })
+
+    it('FetchError以外のErrorオブジェクトを拒否する', () => {
+      const normalError = {
+        name: 'Error',
+        message: 'Normal error',
+      }
+
+      expect(isFetchError(normalError)).toBe(false)
+    })
+
+    it('nameプロパティがないオブジェクトを拒否する', () => {
+      const obj = {
+        message: 'No name property',
+      }
+
+      expect(isFetchError(obj)).toBe(false)
+    })
+
+    it('プリミティブ値を拒否する', () => {
+      expect(isFetchError('string')).toBe(false)
+      expect(isFetchError(123)).toBe(false)
+      expect(isFetchError(null)).toBe(false)
+      expect(isFetchError(undefined)).toBe(false)
+    })
+
+    it('空オブジェクトを拒否する', () => {
+      expect(isFetchError({})).toBe(false)
+    })
+  })
+
+  describe('fetchErrorSchema', () => {
+    it('有効なFetchErrorを検証する', () => {
+      const fetchError = {
+        name: 'FetchError',
+        message: 'Network error',
+      }
+
+      const result = fetchErrorSchema.safeParse(fetchError)
+      expect(result.success).toBe(true)
+      expect(result.data).toEqual(fetchError)
+    })
+
+    it('無効なオブジェクトを拒否する', () => {
+      const invalidError = {
+        name: 'Error',
+        message: 'Not a fetch error',
+      }
+
+      expect(fetchErrorSchema.safeParse(invalidError).success).toBe(false)
+    })
+  })
+
+  describe('ensureAsyncDataOf', () => {
+    const testSchema = z.object({
+      id: z.number(),
+      name: z.string(),
+    })
+
+    it('有効なAsyncDataオブジェクトを検証する', () => {
+      const validAsyncData = {
+        data: {
+          value: { id: 1, name: 'test' },
+        },
+        error: {
+          value: null,
+        },
+      }
+
+      expect(() => {
+        ensureAsyncDataOf(testSchema, validAsyncData)
+      }).not.toThrow()
+    })
+
+    it('nullのdataを許可する', () => {
+      const asyncDataWithNullData = {
+        data: {
+          value: null,
+        },
+        error: {
+          value: null,
+        },
+      }
+
+      expect(() => {
+        ensureAsyncDataOf(testSchema, asyncDataWithNullData)
+      }).not.toThrow()
+    })
+
+    it('有効なFetchErrorを許可する', () => {
+      const asyncDataWithError = {
+        data: {
+          value: null,
+        },
+        error: {
+          value: {
+            name: 'FetchError',
+            message: 'Network error',
+          },
+        },
+      }
+
+      expect(() => {
+        ensureAsyncDataOf(testSchema, asyncDataWithError)
+      }).not.toThrow()
+    })
+
+    it('プリミティブ値を拒否する', () => {
+      expect(() => {
+        ensureAsyncDataOf(testSchema, 'string')
+      }).toThrow('Expected object with data and error properties')
+
+      expect(() => {
+        ensureAsyncDataOf(testSchema, 123)
+      }).toThrow('Expected object with data and error properties')
+
+      expect(() => {
+        ensureAsyncDataOf(testSchema, null)
+      }).toThrow('Expected object with data and error properties')
+    })
+
+    it('dataプロパティがないオブジェクトを拒否する', () => {
+      const invalidObject = {
+        error: { value: null },
+      }
+
+      expect(() => {
+        ensureAsyncDataOf(testSchema, invalidObject)
+      }).toThrow('Expected object with data and error properties')
+    })
+
+    it('errorプロパティがないオブジェクトを拒否する', () => {
+      const invalidObject = {
+        data: { value: { id: 1, name: 'test' } },
+      }
+
+      expect(() => {
+        ensureAsyncDataOf(testSchema, invalidObject)
+      }).toThrow('Expected object with data and error properties')
+    })
+
+    it('無効なdataスキーマを拒否する', () => {
+      const invalidAsyncData = {
+        data: {
+          value: { id: 'invalid', name: 'test' }, // idが文字列（数値であるべき）
+        },
+        error: {
+          value: null,
+        },
+      }
+
+      expect(() => {
+        ensureAsyncDataOf(testSchema, invalidAsyncData)
+      }).toThrow()
+    })
+
+    it('無効なerrorオブジェクトを拒否する', () => {
+      const invalidAsyncData = {
+        data: {
+          value: null,
+        },
+        error: {
+          value: {
+            name: 'Error', // FetchErrorでない
+            message: 'Invalid error',
+          },
+        },
+      }
+
+      expect(() => {
+        ensureAsyncDataOf(testSchema, invalidAsyncData)
+      }).toThrow()
+    })
+  })
+
+  describe('requireAsyncDataOf', () => {
+    const testSchema = z.object({
+      id: z.number(),
+      name: z.string(),
+    })
+
+    it('有効なAsyncDataオブジェクトを返す', () => {
+      const validAsyncData = {
+        data: {
+          value: { id: 1, name: 'test' },
+        },
+        error: {
+          value: null,
+        },
+      }
+
+      const result = requireAsyncDataOf(testSchema, validAsyncData)
+      expect(result).toBe(validAsyncData)
+    })
+
+    it('無効なオブジェクトで例外を投げる', () => {
+      const invalidAsyncData = {
+        data: {
+          value: { id: 'invalid', name: 'test' },
+        },
+        error: {
+          value: null,
+        },
+      }
+
+      expect(() => {
+        return requireAsyncDataOf(testSchema, invalidAsyncData)
+      }).toThrow()
+    })
+
+    it('プリミティブ値で例外を投げる', () => {
+      expect(() => {
+        return requireAsyncDataOf(testSchema, 'string')
+      }).toThrow('Expected object with data and error properties')
+    })
+  })
+
+  describe('型定義', () => {
+    it('ResponseStatus型が正しく推論される', () => {
+      const okStatus: ResponseStatus = 'ok'
+      const ngStatus: ResponseStatus = 'ng'
+
+      expect(okStatus).toBe('ok')
+      expect(ngStatus).toBe('ng')
+    })
+
+    it('Paging型が正しく推論される', () => {
+      const paging: Paging = {
+        limit: 10,
+        offset: 0,
+        total: 100,
+      }
+
+      expect(paging.limit).toBe(10)
+      expect(paging.offset).toBe(0)
+      expect(paging.total).toBe(100)
+    })
+  })
+})
+````
+
+## File: layers/base/app/test/utils/tuple.spec.ts
+````typescript
+import { describe, test } from 'vitest'
+import { tupleWideningDo } from '#base/app/utils/tuple'
+
+describe('tupleWideningDo', () => {
+  test('can apply a tuple function', () => {
+    const xs: readonly ['x', 'y', 'z'] = ['x', 'y', 'z']
+    const x: string | null = 'x'
+    tupleWideningDo(xs, x, (xs, x) => xs.indexOf(x))
+    // type errorが発生しなければいいので、expect()は不要
+  })
+})
+````
+
+## File: layers/base/app/test/utils/uuid.spec.ts
+````typescript
+import { describe, test, expect } from 'vitest'
+import { createUuidV4 } from '#base/app/utils/uuid'
+
+describe('createUuidV4', () => {
+  test('generates a valid UUIDv4 string', () => {
+    const uuidV4 = createUuidV4()
+    expect(uuidV4).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    )
+  })
+
+  test('returns unique UUIDv4 strings on different calls', () => {
+    const uuidV4_1 = createUuidV4()
+    const uuidV4_2 = createUuidV4()
+    expect(uuidV4_1).not.toBe(uuidV4_2)
+  })
+})
+````
+
+## File: layers/base/app/test/mock-close-icon.js
+````javascript
+export default {
+  name: 'RiCloseLine',
+  template: '<svg class="icon"><path /></svg>',
+  props: ['class'],
+}
+````
+
+## File: layers/base/app/test/composables/node-with-element-environment.ts
+````typescript
+import type { Environment } from 'vitest/environments'
+import { builtinEnvironments } from 'vitest/environments'
+
+export default <Environment>{
+  ...builtinEnvironments.node,
+  name: 'node-with-element',
+  viteEnvironment: 'ssr',
+  async setup(global, options) {
+    const result = await builtinEnvironments.node.setup(global, options)
+    Object.defineProperty(global, 'HTMLElement', {
+      configurable: true,
+      value: class HTMLElement {
+        readonly nodeElement = true
+      },
+    })
+    return result
+  },
+}
+````
+
+## File: layers/base/app/test/composables/use-strict-i18n.spec.ts
+````typescript
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  I18nTKeyMissingError,
+  useStrictI18n,
+} from '#base/app/composables/use-strict-i18n'
+
+const { mockUseI18n } = vi.hoisted(() => ({
+  mockUseI18n: vi.fn(),
+}))
+
+vi.mock('vue-i18n', async importOriginal => ({
+  ...await importOriginal<typeof import('vue-i18n')>(),
+  useI18n: mockUseI18n,
+}))
+
+describe('useStrictI18n', () => {
+  beforeEach(() => {
+    mockUseI18n.mockReset()
+  })
+
+  it('preserves options and returns the useI18n result', () => {
+    const i18n = { t: vi.fn(), locale: { value: 'ja' } }
+    mockUseI18n.mockReturnValue(i18n)
+
+    const result = useStrictI18n({ locale: 'ja', fallbackLocale: 'en' })
+
+    expect(result).toBe(i18n)
+    expect(mockUseI18n).toHaveBeenCalledWith({
+      locale: 'ja',
+      fallbackLocale: 'en',
+      missing: expect.any(Function),
+    })
+  })
+
+  it('supports omitted options and throws a descriptive missing-key error', () => {
+    useStrictI18n()
+    const options = mockUseI18n.mock.calls[0]?.[0]
+
+    expect(() => options.missing('en', 'missing.key')).toThrow(
+      new I18nTKeyMissingError('key \'missing.key\' is not found in locale \'en\''),
+    )
+  })
+})
+````
+
+## File: layers/base/app/test/composables/useCustomIntersectionObserver.spec.ts
+````typescript
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import useCustomIntersectionObserver from '#base/app/composables/useCustomIntersectionObserver'
+
+type ObserverCallback = ConstructorParameters<typeof IntersectionObserver>[0]
+
+const callbacks: ObserverCallback[] = []
+const observe = vi.fn()
+const unobserve = vi.fn()
+const IntersectionObserverMock = vi.fn(class {
+  disconnect = vi.fn()
+  observe = observe
+  takeRecords = vi.fn()
+  unobserve = unobserve
+
+  constructor(callback: ObserverCallback) {
+    callbacks.push(callback)
+  }
+})
+
+const entry = (target: Element, isIntersecting: boolean) => ({
+  target,
+  isIntersecting,
+}) as IntersectionObserverEntry
+
+beforeEach(() => {
+  callbacks.length = 0
+  observe.mockClear()
+  unobserve.mockClear()
+  IntersectionObserverMock.mockClear()
+  vi.useFakeTimers()
+  vi.stubGlobal('IntersectionObserver', IntersectionObserverMock)
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+  vi.unstubAllGlobals()
+})
+
+describe('doObserve', () => {
+  it('observes with defaults and performs the default delayed in action', () => {
+    const element = document.createElement('div')
+    const inAction = vi.fn()
+
+    useCustomIntersectionObserver().doObserve([{ element, inAction }])
+    callbacks[0]?.([entry(element, true)], {} as IntersectionObserver)
+
+    expect(IntersectionObserverMock).toHaveBeenCalledWith(
+      expect.any(Function),
+      { root: null, rootMargin: '0px', threshold: 0.1 },
+    )
+    expect(observe).toHaveBeenCalledWith(element)
+    expect(inAction).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(300)
+    expect(inAction).toHaveBeenCalledOnce()
+    expect(element.classList.contains('-intersecting')).toBe(true)
+    expect(unobserve).not.toHaveBeenCalled()
+  })
+
+  it('supports custom options, staggered delay, class, once, and exit action', () => {
+    const first = document.createElement('div')
+    const second = document.createElement('div')
+    const firstIn = vi.fn()
+    const secondIn = vi.fn()
+    const outAction = vi.fn()
+    const options = { root: first, rootMargin: '2px', threshold: 1 }
+
+    useCustomIntersectionObserver().doObserve([
+      { element: first, once: true, delay: 0, inAction: firstIn },
+      {
+        element: second,
+        once: true,
+        delay: 20,
+        inAction: secondIn,
+        outAction,
+        intersectingClass: 'visible',
+      },
+    ], options)
+
+    callbacks[0]?.([entry(first, true)], {} as IntersectionObserver)
+    callbacks[1]?.([entry(second, true)], {} as IntersectionObserver)
+    vi.advanceTimersByTime(0)
+    expect(firstIn).toHaveBeenCalledOnce()
+    expect(unobserve).toHaveBeenCalledWith(first)
+    expect(secondIn).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(20)
+    expect(secondIn).toHaveBeenCalledOnce()
+    expect(second.classList.contains('visible')).toBe(true)
+    expect(unobserve).toHaveBeenCalledWith(second)
+
+    callbacks[1]?.([entry(second, false)], {} as IntersectionObserver)
+    expect(outAction).toHaveBeenCalledOnce()
+    expect(second.classList.contains('visible')).toBe(false)
+  })
+
+  it('allows omitted actions when leaving the viewport', () => {
+    const element = document.createElement('div')
+    element.classList.add('-intersecting')
+    useCustomIntersectionObserver().doObserve([{ element }])
+
+    callbacks[0]?.([entry(element, false)], {} as IntersectionObserver)
+
+    expect(element.classList.contains('-intersecting')).toBe(false)
+  })
+})
+````
+
+## File: layers/base/app/test/composables/useDefaultApi.spec.ts
+````typescript
+// NOTE: そもそももっといいテストあれば是非
+import { test, expect, vi } from 'vitest'
+import { UseFetchOptions } from 'nuxt/app'
+import { FetchOptions } from 'ofetch'
+import useDefaultApi, { defaultFetcher } from '#base/app/composables/useDefaultApi'
+
+vi.mock('nuxt/app', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('nuxt/app')>()
+  return {
+    ...actual,
+    // NOTE: 本テストにおいて実際にAPI叩くわけではなく、useFetchをすげ替えたいのでダミーとなるmock作成
+    useFetch: vi.fn((path: string, options: UseFetchOptions<FetchOptions>) => {
+      return { path, options }
+    }),
+  }
+})
+
+test('useDefaultApi', () => {
+  // NOTE: useDefaultApiで使用できるRepositoryKeyを入れた際にオブジェクトが返ってくること。この場合useDefaultApi('hoge')など存在しない場合はテストが落ちる
+  const useApiExample = useDefaultApi('example').repository.value
+  const expectObj = { get: {} }
+  expect(useApiExample).toMatchObject(expectObj)
+})
+
+test('defaultFetcher', () => {
+  const path = '/example'
+  const options = {}
+  // useFetchが発火することを確認。戻り値はmockの戻り値とする
+  expect(defaultFetcher(path, options)).toStrictEqual({ path, options })
+})
+````
+
+## File: layers/base/app/test/composables/useLocale.server.spec.ts
+````typescript
+// @vitest-environment ./app/test/composables/node-with-element-environment.ts
+
+import { expect, it, vi } from 'vitest'
+import { ref } from 'vue'
+import { useLocale } from '#base/app/composables/useLocale'
+
+vi.mock('nuxt/app', async importOriginal => ({
+  ...await importOriginal<typeof import('nuxt/app')>(),
+  useRequestHeaders: vi.fn(() => ({
+    'accept-language': 'en-US,en;q=0.9',
+  })),
+}))
+
+vi.mock('#base/app/utils/storage-control', async importOriginal => ({
+  ...await importOriginal<typeof import('#base/app/utils/storage-control')>(),
+  getSingleCookieValue: vi.fn(() => null),
+}))
+
+vi.mock('vue-i18n', () => ({
+  createI18n: vi.fn(() => ({ global: {}, mode: 'composition' })),
+  useI18n: vi.fn(() => ({ locale: ref('ja') })),
+}))
+
+vi.mock('@vee-validate/i18n', () => ({ setLocale: vi.fn() }))
+
+it('uses the request language during server rendering', () => {
+  expect(useLocale().getDefaultLanguage()).toBe('en')
+})
+````
+
+## File: layers/base/app/test/config/base-config.spec.ts
+````typescript
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { getAppConfigOfEnvType } from '#base/config/appConfig'
+import {
+  allEnvTypes,
+  ensureEnvType,
+  isEnvType,
+  readEnvType,
+} from '#base/config/models/EnvType'
+
+describe('EnvType', () => {
+  it.each(allEnvTypes)('accepts %s', (envType) => {
+    expect(isEnvType(envType)).toBe(true)
+    expect(() => ensureEnvType(envType)).not.toThrow()
+    expect(readEnvType({ VITE_OUTPUT_ENV: envType })).toBe(envType)
+  })
+
+  it('rejects values outside EnvType', () => {
+    expect(isEnvType('preview')).toBe(false)
+    expect(isEnvType(undefined)).toBe(false)
+    expect(() => ensureEnvType('preview')).toThrow(
+      new TypeError('Not an EnvType.'),
+    )
+    expect(() => readEnvType({ VITE_OUTPUT_ENV: 'preview' })).toThrow(TypeError)
+  })
+
+  it('defaults to local and reports a missing variable', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(readEnvType({})).toBe('local')
+    expect(error).toHaveBeenCalledWith('No VITE_OUTPUT_ENV is set.')
+  })
+})
+
+describe('appConfig', () => {
+  it.each(allEnvTypes)('builds %s config', (envType) => {
+    expect(getAppConfigOfEnvType(envType, { SAMPLE: 'value' })).toEqual({})
+  })
+})
+
+describe('runtimeConfig', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.resetModules()
+  })
+
+  it.each([
+    ['local', 'http://localhost:3000', 'http://localhost:3003'],
+    ['development', 'http://localhost:3000', undefined],
+    ['staging', '', undefined],
+    ['production', '', undefined],
+  ] as const)('builds %s config', async (envType, url, httpBinUrl) => {
+    const { getRuntimeConfigOfEnvType } = await import('#base/config/runtimeConfig')
+    const config = getRuntimeConfigOfEnvType(envType, {})
+
+    expect(config.public.outputEnv).toBe(envType)
+    expect(config.public.url).toBe(url)
+    expect(config.public.baseUrl).toBe(url)
+    expect(config.public.apiPrefix).toBe('/api/v1')
+    expect(
+      'httpBinUrl' in config.public ? config.public.httpBinUrl : undefined,
+    ).toBe(httpBinUrl)
+  })
+
+  it('uses NUXT_API_PREFIX when supplied', async () => {
+    vi.stubEnv('NUXT_API_PREFIX', '/custom')
+    vi.resetModules()
+    const { getRuntimeConfigOfEnvType } = await import('#base/config/runtimeConfig')
+
+    expect(getRuntimeConfigOfEnvType('local', {}).public.apiPrefix).toBe('/custom')
+  })
+})
+````
+
+## File: layers/base/app/test/i18n/i18n-config.spec.ts
+````typescript
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { cookieValue } = vi.hoisted(() => ({
+  cookieValue: { value: undefined as string | undefined },
+}))
+
+vi.mock('universal-cookie', () => ({
+  default: class CookiesMock {
+    get() {
+      return cookieValue.value
+    }
+  },
+}))
+
+const originalClient = Object.getOwnPropertyDescriptor(process, 'client')
+
+const loadConfig = async ({
+  client,
+  language,
+  cookie,
+}: {
+  client: boolean
+  language?: string
+  cookie?: string
+}) => {
+  Object.defineProperty(process, 'client', {
+    configurable: true,
+    value: client,
+  })
+  cookieValue.value = cookie
+  vi.stubGlobal('navigator', language === undefined ? undefined : { language })
+  vi.resetModules()
+  return import('#base/i18n/i18n.config')
+}
+
+beforeEach(() => {
+  cookieValue.value = undefined
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+  if (originalClient) {
+    Object.defineProperty(process, 'client', originalClient)
+  } else {
+    Reflect.deleteProperty(process, 'client')
+  }
+  vi.resetModules()
+})
+
+describe('i18n config locale selection', () => {
+  it.each([
+    [{ client: false, language: 'en-US' }, 'ja'],
+    [{ client: true, language: 'fr-FR', cookie: 'ja' }, 'ja'],
+    [{ client: true, language: 'ja-JP', cookie: 'en' }, 'en'],
+    [{ client: true, language: 'ja-JP' }, 'ja'],
+    [{ client: true, language: 'en-US' }, 'en'],
+    [{ client: true, language: 'fr-FR' }, 'ja'],
+    [{ client: true }, 'ja'],
+  ] as const)('selects $1 for %o', async (input, expected) => {
+    const config = await loadConfig(input)
+    const detectBrowserLanguage
+      = config.nuxtI18nOptions.detectBrowserLanguage
+    if (!detectBrowserLanguage || typeof detectBrowserLanguage !== 'object') {
+      throw new TypeError('detectBrowserLanguage must be configured')
+    }
+
+    expect(config.nuxtI18nOptions.defaultLocale).toBe(expected)
+    expect(detectBrowserLanguage.fallbackLocale).toBe(
+      expected,
+    )
+    expect(config.default.locale).toBe(expected)
+    expect(config.default.messages).toHaveProperty('ja')
+    expect(config.default.messages).toHaveProperty('en')
+  })
+})
+````
+
 ## File: layers/base/app/test/repositories/exampleRepository.spec.ts
 ````typescript
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1209,36 +1765,6 @@ describe('exampleRepository', () => {
     defaultApiMock.mockResolvedValue({ status: 'broken', data: { todos: [] } })
 
     await expect(exampleRepository.get.getExample()).rejects.toThrow()
-  })
-})
-````
-
-## File: layers/base/app/test/utils/types/types.spec.ts
-````typescript
-import { IsEqual } from 'type-fest'
-import { describe, test } from 'vitest'
-import { Nullable, Overwrite, ValueOf } from '#base/app/utils/types/types'
-
-describe('proof', () => {
-  test('Nullable', () => {
-    const _proof: IsEqual<
-      Nullable<{ a: number, b: number }, 'a'>,
-      { a: number | null, b: number }
-    > = true
-  })
-
-  test('ValueOf', () => {
-    const _proof: IsEqual<
-      ValueOf<{ a: number, b: string, c: boolean }>,
-      number | string | boolean
-    > = true
-  })
-
-  test('Overwrite', () => {
-    const _proof: IsEqual<
-      Overwrite<{ a: number, b: string }, { a: boolean }>,
-      { a: boolean } & { b: string }
-    > = true
   })
 })
 ````
@@ -1828,26 +2354,6 @@ describe('console.ts', () => {
 })
 ````
 
-## File: layers/base/app/test/utils/constant.spec.ts
-````typescript
-import { describe, expect, it } from 'vitest'
-
-describe('constant.ts', () => {
-  it('定数ファイルのテスト - 実装待ち', async () => {
-    // constant.tsの内容を確認してから実装
-    const constantModule = await import('#base/app/utils/constant')
-
-    // 基本的な確認
-    expect(constantModule).toBeDefined()
-
-    /*
-     * 定数が存在することを確認
-     * 実際の定数に応じてテストケースを追加
-     */
-  })
-})
-````
-
 ## File: layers/base/app/test/utils/date-control.spec.ts
 ````typescript
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
@@ -2216,6 +2722,29 @@ describe('date-control.ts', () => {
 })
 ````
 
+## File: layers/base/app/test/utils/default-factory.spec.ts
+````typescript
+import { describe, it, expect } from 'vitest'
+import exampleRepository from '#base/app/repositories/exampleRepository'
+import {
+  defaultRepositories,
+  defaultRepositoryFactory,
+} from '#base/app/utils/default-factory'
+
+describe('defaultRepositoryFactory', () => {
+  it('should return the correct repository when a valid key is provided', () => {
+    const repository = defaultRepositoryFactory.get('example')
+    expect(repository).toBe(exampleRepository)
+  })
+})
+
+describe('defaultRepositories', () => {
+  it('should contain the example repository', () => {
+    expect(defaultRepositories.example).toBe(exampleRepository)
+  })
+})
+````
+
 ## File: layers/base/app/test/utils/environment.spec.ts
 ````typescript
 import { mount } from '@vue/test-utils'
@@ -2264,433 +2793,6 @@ test('raiseError', () => {
   expect(() => {
     const _ = xs[0] ?? raiseError('0th element is nothing')
   }).toThrow('0th element is nothing')
-})
-````
-
-## File: layers/base/app/test/utils/i18n.spec.ts
-````typescript
-import { test } from 'vitest'
-
-test('関数のexportがないので、#base/app/utils/i18nモジュールへのテストはなし', () => {})
-````
-
-## File: layers/base/app/test/utils/object.spec.ts
-````typescript
-import { describe, test, expect } from 'vitest'
-import { writableClone } from '#base/app/utils/object'
-
-describe('writableClone', () => {
-  test('copies usual values', () => {
-    const x = { a: 42 } as const
-    const y = writableClone(x)
-    y.a = 42 // 代入可能になっている
-    expect(y).toStrictEqual(x)
-  })
-
-  test('breaks type safety if copying unusual values', () => {
-    const xs: undefined[] = [undefined]
-    const ys: undefined[] = writableClone(xs)
-    const y: undefined = ys[0]
-    expect(y).toBe(null) // undefined型の変数にnullが入っている
-
-    // その他、nullになるもの。
-    expect(writableClone([NaN])).not.toStrictEqual([NaN])
-    expect(writableClone([Infinity])).not.toStrictEqual([Infinity])
-  })
-})
-````
-
-## File: layers/base/app/test/utils/response.spec.ts
-````typescript
-import { describe, expect, it } from 'vitest'
-import { z } from 'zod/v3'
-import {
-  statusSchema,
-  pagingSchema,
-  makeResponseSchema,
-  isFetchError,
-  fetchErrorSchema,
-  ensureAsyncDataOf,
-  requireAsyncDataOf,
-  type ResponseStatus,
-  type Paging,
-} from '#base/app/utils/response'
-
-describe('response.ts', () => {
-  describe('statusSchema', () => {
-    it('okステータスを正しく検証する', () => {
-      const result = statusSchema.safeParse('ok')
-      expect(result.success).toBe(true)
-      expect(result.data).toBe('ok')
-    })
-
-    it('ngステータスを正しく検証する', () => {
-      const result = statusSchema.safeParse('ng')
-      expect(result.success).toBe(true)
-      expect(result.data).toBe('ng')
-    })
-
-    it('無効なステータスを拒否する', () => {
-      const result = statusSchema.safeParse('invalid')
-      expect(result.success).toBe(false)
-    })
-
-    it('文字列以外を拒否する', () => {
-      expect(statusSchema.safeParse(123).success).toBe(false)
-      expect(statusSchema.safeParse(null).success).toBe(false)
-      expect(statusSchema.safeParse(undefined).success).toBe(false)
-    })
-  })
-
-  describe('pagingSchema', () => {
-    it('正しいページング情報を検証する', () => {
-      const validPaging = {
-        limit: 10,
-        offset: 0,
-        total: 100,
-      }
-      const result = pagingSchema.safeParse(validPaging)
-      expect(result.success).toBe(true)
-      expect(result.data).toEqual(validPaging)
-    })
-
-    it('必須フィールドが不足している場合エラーを返す', () => {
-      expect(pagingSchema.safeParse({ limit: 10, offset: 0 }).success).toBe(false)
-      expect(pagingSchema.safeParse({ limit: 10, total: 100 }).success).toBe(false)
-      expect(pagingSchema.safeParse({ offset: 0, total: 100 }).success).toBe(false)
-    })
-
-    it('数値以外の値を拒否する', () => {
-      const invalidPaging = {
-        limit: '10',
-        offset: 0,
-        total: 100,
-      }
-      expect(pagingSchema.safeParse(invalidPaging).success).toBe(false)
-    })
-
-    it('空オブジェクトを拒否する', () => {
-      expect(pagingSchema.safeParse({}).success).toBe(false)
-    })
-  })
-
-  describe('makeResponseSchema', () => {
-    it('基本的なレスポンススキーマを作成する', () => {
-      const schema = makeResponseSchema({
-        data: z.string(),
-        message: z.string(),
-      })
-
-      const validResponse = {
-        status: 'ok',
-        data: 'test data',
-        message: 'success',
-      }
-
-      const result = schema.safeParse(validResponse)
-      expect(result.success).toBe(true)
-      expect(result.data).toEqual(validResponse)
-    })
-
-    it('statusフィールドが必須である', () => {
-      const schema = makeResponseSchema({
-        data: z.string(),
-      })
-
-      const invalidResponse = {
-        data: 'test data',
-        // status missing
-      }
-
-      expect(schema.safeParse(invalidResponse).success).toBe(false)
-    })
-
-    it('複雑なスキーマオブジェクトを処理する', () => {
-      const schema = makeResponseSchema({
-        users: z.array(z.object({
-          id: z.number(),
-          name: z.string(),
-        })),
-        paging: pagingSchema,
-      })
-
-      const validResponse = {
-        status: 'ok',
-        users: [
-          { id: 1, name: 'Alice' },
-          { id: 2, name: 'Bob' },
-        ],
-        paging: {
-          limit: 10,
-          offset: 0,
-          total: 2,
-        },
-      }
-
-      const result = schema.safeParse(validResponse)
-      expect(result.success).toBe(true)
-    })
-
-    it('空のスキーマオブジェクトでも動作する', () => {
-      const schema = makeResponseSchema({})
-
-      const validResponse = {
-        status: 'ng',
-      }
-
-      const result = schema.safeParse(validResponse)
-      expect(result.success).toBe(true)
-      expect(result.data).toEqual(validResponse)
-    })
-  })
-
-  describe('isFetchError', () => {
-    it('FetchErrorオブジェクトを正しく識別する', () => {
-      const fetchError = {
-        name: 'FetchError',
-        message: 'Network error',
-        cause: 'Connection failed',
-      }
-
-      expect(isFetchError(fetchError)).toBe(true)
-    })
-
-    it('FetchError以外のErrorオブジェクトを拒否する', () => {
-      const normalError = {
-        name: 'Error',
-        message: 'Normal error',
-      }
-
-      expect(isFetchError(normalError)).toBe(false)
-    })
-
-    it('nameプロパティがないオブジェクトを拒否する', () => {
-      const obj = {
-        message: 'No name property',
-      }
-
-      expect(isFetchError(obj)).toBe(false)
-    })
-
-    it('プリミティブ値を拒否する', () => {
-      expect(isFetchError('string')).toBe(false)
-      expect(isFetchError(123)).toBe(false)
-      expect(isFetchError(null)).toBe(false)
-      expect(isFetchError(undefined)).toBe(false)
-    })
-
-    it('空オブジェクトを拒否する', () => {
-      expect(isFetchError({})).toBe(false)
-    })
-  })
-
-  describe('fetchErrorSchema', () => {
-    it('有効なFetchErrorを検証する', () => {
-      const fetchError = {
-        name: 'FetchError',
-        message: 'Network error',
-      }
-
-      const result = fetchErrorSchema.safeParse(fetchError)
-      expect(result.success).toBe(true)
-      expect(result.data).toEqual(fetchError)
-    })
-
-    it('無効なオブジェクトを拒否する', () => {
-      const invalidError = {
-        name: 'Error',
-        message: 'Not a fetch error',
-      }
-
-      expect(fetchErrorSchema.safeParse(invalidError).success).toBe(false)
-    })
-  })
-
-  describe('ensureAsyncDataOf', () => {
-    const testSchema = z.object({
-      id: z.number(),
-      name: z.string(),
-    })
-
-    it('有効なAsyncDataオブジェクトを検証する', () => {
-      const validAsyncData = {
-        data: {
-          value: { id: 1, name: 'test' },
-        },
-        error: {
-          value: null,
-        },
-      }
-
-      expect(() => {
-        ensureAsyncDataOf(testSchema, validAsyncData)
-      }).not.toThrow()
-    })
-
-    it('nullのdataを許可する', () => {
-      const asyncDataWithNullData = {
-        data: {
-          value: null,
-        },
-        error: {
-          value: null,
-        },
-      }
-
-      expect(() => {
-        ensureAsyncDataOf(testSchema, asyncDataWithNullData)
-      }).not.toThrow()
-    })
-
-    it('有効なFetchErrorを許可する', () => {
-      const asyncDataWithError = {
-        data: {
-          value: null,
-        },
-        error: {
-          value: {
-            name: 'FetchError',
-            message: 'Network error',
-          },
-        },
-      }
-
-      expect(() => {
-        ensureAsyncDataOf(testSchema, asyncDataWithError)
-      }).not.toThrow()
-    })
-
-    it('プリミティブ値を拒否する', () => {
-      expect(() => {
-        ensureAsyncDataOf(testSchema, 'string')
-      }).toThrow('Expected object with data and error properties')
-
-      expect(() => {
-        ensureAsyncDataOf(testSchema, 123)
-      }).toThrow('Expected object with data and error properties')
-
-      expect(() => {
-        ensureAsyncDataOf(testSchema, null)
-      }).toThrow('Expected object with data and error properties')
-    })
-
-    it('dataプロパティがないオブジェクトを拒否する', () => {
-      const invalidObject = {
-        error: { value: null },
-      }
-
-      expect(() => {
-        ensureAsyncDataOf(testSchema, invalidObject)
-      }).toThrow('Expected object with data and error properties')
-    })
-
-    it('errorプロパティがないオブジェクトを拒否する', () => {
-      const invalidObject = {
-        data: { value: { id: 1, name: 'test' } },
-      }
-
-      expect(() => {
-        ensureAsyncDataOf(testSchema, invalidObject)
-      }).toThrow('Expected object with data and error properties')
-    })
-
-    it('無効なdataスキーマを拒否する', () => {
-      const invalidAsyncData = {
-        data: {
-          value: { id: 'invalid', name: 'test' }, // idが文字列（数値であるべき）
-        },
-        error: {
-          value: null,
-        },
-      }
-
-      expect(() => {
-        ensureAsyncDataOf(testSchema, invalidAsyncData)
-      }).toThrow()
-    })
-
-    it('無効なerrorオブジェクトを拒否する', () => {
-      const invalidAsyncData = {
-        data: {
-          value: null,
-        },
-        error: {
-          value: {
-            name: 'Error', // FetchErrorでない
-            message: 'Invalid error',
-          },
-        },
-      }
-
-      expect(() => {
-        ensureAsyncDataOf(testSchema, invalidAsyncData)
-      }).toThrow()
-    })
-  })
-
-  describe('requireAsyncDataOf', () => {
-    const testSchema = z.object({
-      id: z.number(),
-      name: z.string(),
-    })
-
-    it('有効なAsyncDataオブジェクトを返す', () => {
-      const validAsyncData = {
-        data: {
-          value: { id: 1, name: 'test' },
-        },
-        error: {
-          value: null,
-        },
-      }
-
-      const result = requireAsyncDataOf(testSchema, validAsyncData)
-      expect(result).toBe(validAsyncData)
-    })
-
-    it('無効なオブジェクトで例外を投げる', () => {
-      const invalidAsyncData = {
-        data: {
-          value: { id: 'invalid', name: 'test' },
-        },
-        error: {
-          value: null,
-        },
-      }
-
-      expect(() => {
-        return requireAsyncDataOf(testSchema, invalidAsyncData)
-      }).toThrow()
-    })
-
-    it('プリミティブ値で例外を投げる', () => {
-      expect(() => {
-        return requireAsyncDataOf(testSchema, 'string')
-      }).toThrow('Expected object with data and error properties')
-    })
-  })
-
-  describe('型定義', () => {
-    it('ResponseStatus型が正しく推論される', () => {
-      const okStatus: ResponseStatus = 'ok'
-      const ngStatus: ResponseStatus = 'ng'
-
-      expect(okStatus).toBe('ok')
-      expect(ngStatus).toBe('ng')
-    })
-
-    it('Paging型が正しく推論される', () => {
-      const paging: Paging = {
-        limit: 10,
-        offset: 0,
-        total: 100,
-      }
-
-      expect(paging.limit).toBe(10)
-      expect(paging.offset).toBe(0)
-      expect(paging.total).toBe(100)
-    })
-  })
 })
 ````
 
@@ -2924,21 +3026,6 @@ describe('decodeJwt', () => {
 })
 ````
 
-## File: layers/base/app/test/utils/tuple.spec.ts
-````typescript
-import { describe, test } from 'vitest'
-import { tupleWideningDo } from '#base/app/utils/tuple'
-
-describe('tupleWideningDo', () => {
-  test('can apply a tuple function', () => {
-    const xs: readonly ['x', 'y', 'z'] = ['x', 'y', 'z']
-    const x: string | null = 'x'
-    tupleWideningDo(xs, x, (xs, x) => xs.indexOf(x))
-    // type errorが発生しなければいいので、expect()は不要
-  })
-})
-````
-
 ## File: layers/base/app/test/utils/url.spec.ts
 ````typescript
 import {
@@ -3071,27 +3158,6 @@ describe('url.ts', () => {
     expect(() => getRouteQueries(query({ value: 'x' }), {
       value: { type: 'unsupported', required: true },
     } as never)).toThrow('unknown query type: unsupported')
-  })
-})
-````
-
-## File: layers/base/app/test/utils/uuid.spec.ts
-````typescript
-import { describe, test, expect } from 'vitest'
-import { createUuidV4 } from '#base/app/utils/uuid'
-
-describe('createUuidV4', () => {
-  test('generates a valid UUIDv4 string', () => {
-    const uuidV4 = createUuidV4()
-    expect(uuidV4).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
-    )
-  })
-
-  test('returns unique UUIDv4 strings on different calls', () => {
-    const uuidV4_1 = createUuidV4()
-    const uuidV4_2 = createUuidV4()
-    expect(uuidV4_1).not.toBe(uuidV4_2)
   })
 })
 ````
@@ -3406,49 +3472,6 @@ describe('base Nuxt configuration', () => {
       public: { outputEnv: 'production' },
     })
   })
-})
-````
-
-## File: layers/base/app/test/mock-close-icon.js
-````javascript
-export default {
-  name: 'RiCloseLine',
-  template: '<svg class="icon"><path /></svg>',
-  props: ['class'],
-}
-````
-
-## File: layers/base/app/test/composables/useDefaultApi.spec.ts
-````typescript
-// NOTE: そもそももっといいテストあれば是非
-import { test, expect, vi } from 'vitest'
-import { UseFetchOptions } from 'nuxt/app'
-import { FetchOptions } from 'ofetch'
-import useDefaultApi, { defaultFetcher } from '#base/app/composables/useDefaultApi'
-
-vi.mock('nuxt/app', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('nuxt/app')>()
-  return {
-    ...actual,
-    // NOTE: 本テストにおいて実際にAPI叩くわけではなく、useFetchをすげ替えたいのでダミーとなるmock作成
-    useFetch: vi.fn((path: string, options: UseFetchOptions<FetchOptions>) => {
-      return { path, options }
-    }),
-  }
-})
-
-test('useDefaultApi', () => {
-  // NOTE: useDefaultApiで使用できるRepositoryKeyを入れた際にオブジェクトが返ってくること。この場合useDefaultApi('hoge')など存在しない場合はテストが落ちる
-  const useApiExample = useDefaultApi('example').repository.value
-  const expectObj = { get: {} }
-  expect(useApiExample).toMatchObject(expectObj)
-})
-
-test('defaultFetcher', () => {
-  const path = '/example'
-  const options = {}
-  // useFetchが発火することを確認。戻り値はmockの戻り値とする
-  expect(defaultFetcher(path, options)).toStrictEqual({ path, options })
 })
 ````
 
@@ -4277,6 +4300,36 @@ test.prop([fc.nat(), fc.string()])('fails to validate max', (n, s) => {
 })
 ````
 
+## File: layers/base/app/test/e2e/sample.spec.ts
+````typescript
+import { test, expect } from '@playwright/test'
+
+test.describe('Top Page', () => {
+  test('should display top page successfully', async ({ page }) => {
+    // トップページにアクセス
+    const response = await page.goto('/')
+
+    // ページが正常にロードされることを確認
+    await expect(page).toHaveTitle(/.*/)
+
+    // ページのステータスが200であることを確認（正常にレスポンスが返ってくる）
+    expect(response?.status()).toBe(200)
+  })
+
+  test('should have accessible content', async ({ page }) => {
+    await page.goto('/')
+
+    // ページのbody要素が存在することを確認
+    const body = page.locator('body')
+    await expect(body).toBeVisible()
+
+    // HTMLドキュメントが適切にレンダリングされていることを確認
+    const htmlContent = await page.content()
+    expect(htmlContent).toContain('<!DOCTYPE html>')
+  })
+})
+````
+
 ## File: layers/base/app/test/utils/default-api.spec.ts
 ````typescript
 import { describe, it, expect, vi } from 'vitest'
@@ -4479,29 +4532,6 @@ describe('api', () => {
     expect(absent.response._data).toBeUndefined()
     expect(primitive.response._data).toBe('value')
     expect(object.response._data).toEqual({ snakeCase: 1, nestedValue: { innerKey: 2 } })
-  })
-})
-````
-
-## File: layers/base/app/test/utils/default-factory.spec.ts
-````typescript
-import { describe, it, expect } from 'vitest'
-import exampleRepository from '#base/app/repositories/exampleRepository'
-import {
-  defaultRepositories,
-  defaultRepositoryFactory,
-} from '#base/app/utils/default-factory'
-
-describe('defaultRepositoryFactory', () => {
-  it('should return the correct repository when a valid key is provided', () => {
-    const repository = defaultRepositoryFactory.get('example')
-    expect(repository).toBe(exampleRepository)
-  })
-})
-
-describe('defaultRepositories', () => {
-  it('should contain the example repository', () => {
-    expect(defaultRepositories.example).toBe(exampleRepository)
   })
 })
 ````
@@ -4815,36 +4845,6 @@ describe('image.ts', () => {
       expect(lastImage?.removeEventListener).toHaveBeenCalledWith('load', expect.any(Function))
       expect(lastImage?.removeEventListener).toHaveBeenCalledWith('error', expect.any(Function))
     })
-  })
-})
-````
-
-## File: layers/base/app/test/e2e/sample.spec.ts
-````typescript
-import { test, expect } from '@playwright/test'
-
-test.describe('Top Page', () => {
-  test('should display top page successfully', async ({ page }) => {
-    // トップページにアクセス
-    const response = await page.goto('/')
-
-    // ページが正常にロードされることを確認
-    await expect(page).toHaveTitle(/.*/)
-
-    // ページのステータスが200であることを確認（正常にレスポンスが返ってくる）
-    expect(response?.status()).toBe(200)
-  })
-
-  test('should have accessible content', async ({ page }) => {
-    await page.goto('/')
-
-    // ページのbody要素が存在することを確認
-    const body = page.locator('body')
-    await expect(body).toBeVisible()
-
-    // HTMLドキュメントが適切にレンダリングされていることを確認
-    const htmlContent = await page.content()
-    expect(htmlContent).toContain('<!DOCTYPE html>')
   })
 })
 ````
