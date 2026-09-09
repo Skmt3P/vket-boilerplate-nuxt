@@ -782,80 +782,6 @@ const style = computed(() => ({
 </script>
 ```
 
-## File: layers/base/app/components/ha/HaLink.vue
-```vue
-<template>
-  <component
-    :is="component"
-    class="ha-link"
-    v-bind="{ [isNuxtLink ? 'to' : 'href']: linkTo }"
-    :target="blank ? '_blank' : undefined"
-    :rel="rel"
-  >
-    <slot />
-  </component>
-</template>
-
-<script setup lang="ts">
-import { LocationQuery, stringifyQuery } from 'vue-router'
-
-const props = withDefaults(
-  defineProps<{
-    to: string
-    blank?: boolean
-    rel?: HTMLAnchorElement['rel']
-    forceAnchorLink?: boolean
-    noLocale?: boolean
-    // toにqueryパラメータを入れてしまうと、localePathで消えるため、こちらのパラメータを使用してリンクを生成
-    query?: LocationQuery
-    /*
-     * toにhashパラメータを入れてしまうと、localePathで消えるため、こちらのパラメータを使用してリンクを生成
-     * 使う場合は「#」を先頭につけること
-     */
-    hash?: string
-  }>(),
-  {
-    blank: false,
-    rel: undefined,
-    forceAnchorLink: false,
-    noLocale: false,
-    query: undefined,
-    hash: undefined,
-  },
-)
-const isExternalReference = computed(() => !!props.to?.match(/^https?:\/\//))
-const isNuxtLink = computed(
-  // FIXME: isNuxtEnvironment() が壊れている
-  () =>
-    /* isNuxtEnvironment() && */ !props.forceAnchorLink
-    && !isExternalReference.value,
-)
-const component = computed(() =>
-  isNuxtLink.value ? resolveComponent('nuxt-link') : 'a',
-)
-const linkTo = computed(() => {
-  if (!isNuxtLink.value) {
-    return toUrl(props)
-  }
-
-  const localePath = useLocalePath()
-  return localePath({ path: props.to, query: props.query, hash: props.hash })
-})
-const toUrl = ({
-  to,
-  query,
-  hash,
-}: {
-  to: string
-  query?: LocationQuery
-  hash?: string
-}) => {
-  const queryStr = query ? `?${stringifyQuery(query)}` : ''
-  return `${to}${queryStr}${hash ?? ''}`
-}
-</script>
-```
-
 ## File: layers/base/app/components/ha/HaLoadingIcon.vue
 ```vue
 <template>
@@ -2682,215 +2608,6 @@ const enter = () => {
     font-size: 12px;
     font-weight: 400;
     color: v.$red;
-  }
-}
-</style>
-```
-
-## File: layers/base/app/components/hm/input/HmInputFile.vue
-```vue
-<template>
-  <!-- TODO: エラーメッセージの表示をする際に、必要に応じてHmInputTextBase.vue同様の修正(DOM構造とエラーmsgのstyle)を行う -->
-  <label
-    ref="box"
-    :class="['hm-input-file', { '-dragover': isDragOver }]"
-    @dragenter.prevent="toggleDragOver(true)"
-    @dragleave.prevent="toggleDragOver(false)"
-    @dragover.prevent
-    @drop.prevent="onDrop($event)"
-  >
-    <HaBaseInput
-      ref="fileInput"
-      class="input"
-      type="file"
-      name="file"
-      :accept="accept"
-      :multiple="multiple"
-      :files="files"
-      :required="required"
-      @click="onClick"
-      @change="onChange($event)"
-    />
-    <div class="image-box">
-      <slot>
-        <div class="inner">
-          <span class="text"> Select file or drag it! </span>
-        </div>
-      </slot>
-    </div>
-  </label>
-</template>
-
-<script lang="ts" setup>
-import { z } from 'zod/v3'
-import { isValueOf } from '#base/app/utils/zod'
-
-const htmlInputElementAndFilesSchema = z.instanceof(HTMLInputElement).and(
-  z.object({
-    files: z.instanceof(FileList),
-  }),
-)
-
-type Props = {
-  required?: boolean
-  accept?: string
-  multiple?: boolean
-  propFiles?: FileList
-}
-const props = withDefaults(defineProps<Props>(), {
-  required: false,
-  accept: '',
-  multiple: false,
-  propFiles: undefined,
-})
-
-type Emits = {
-  (e: 'input:multiple' | 'input:single', files: FileList): void
-  (e: 'cancel'): void
-}
-const emit = defineEmits<Emits>()
-
-const fileInput = ref<HTMLInputElement>()
-const isDragOver = ref(false)
-const clickListener = ref<((evt: Event) => void) | null>(null)
-
-const files = computed({
-  get: () => props.propFiles,
-  set: (files?: FileList) => {
-    if (!files) return
-    if (props.multiple) {
-      emit('input:multiple', files)
-    }
-    if (!props.multiple) {
-      emit('input:single', files)
-    }
-  },
-})
-
-onMounted(() => {
-  if (!isValueOf(htmlInputElementAndFilesSchema, fileInput.value)) {
-    return
-  }
-
-  clickListener.value = () => {
-    window.onfocus = () => {
-      setTimeout(() => {
-        if (fileInput.value?.files?.length === 0) {
-          emit('cancel')
-        }
-      }, 500)
-    }
-    window.onload = null
-  }
-  fileInput.value.addEventListener('click', clickListener.value)
-})
-
-onUnmounted(() => {
-  if (
-    isValueOf(htmlInputElementAndFilesSchema, fileInput.value)
-    && clickListener.value
-  ) {
-    fileInput.value.removeEventListener('click', clickListener.value)
-  }
-})
-
-const toggleDragOver = (isDragover: boolean) => {
-  isDragOver.value = isDragover
-}
-
-const onDrop = (event: DragEvent) => {
-  toggleDragOver(false)
-  if (event?.dataTransfer) {
-    files.value = event?.dataTransfer?.files
-  }
-}
-
-const onChange = (event: Event) => {
-  const target: (EventTarget & { files?: FileList }) | null = event?.target
-  if (target !== null && !(target?.files instanceof FileList)) {
-    throw new Error('Illegal. This functions is only for file input elements')
-  }
-  if (target?.files) {
-    files.value = target.files
-  }
-}
-
-const onClick = () => {
-  // todo: 同じファイルを二回開けないのでclick時空にする
-  if (fileInput.value instanceof HTMLInputElement) {
-    fileInput.value.value = ''
-  }
-}
-</script>
-
-<style lang="scss" scoped>
-@use '#base/app/assets/styles/mixins' as m;
-@use '#base/app/assets/styles/variables' as v;
-
-.hm-input-file {
-  cursor: pointer;
-  align-items: center;
-  width: 100%;
-  height: 100%;
-
-  &.-dragover {
-    cursor: pointer;
-    opacity: 0.8;
-  }
-
-  &:hover {
-    opacity: 0.7;
-  }
-
-  @include m.sp {
-    &:hover {
-      opacity: inherit;
-    }
-
-    &:active {
-      opacity: 0.7;
-    }
-  }
-
-  > .input {
-    display: none;
-    width: 0;
-    height: 0;
-    visibility: hidden;
-  }
-
-  > .error {
-    display: block;
-
-    width: fit-content;
-
-    font-size: 10px;
-    font-weight: 400;
-    color: v.$red;
-  }
-}
-
-.image-box {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  width: 100%;
-  height: 100%;
-
-  > .inner {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    width: 100%;
-    height: 100%;
-
-    background-color: #d5d5d5;
-  }
-
-  > .inner > .text {
-    color: v.$base-font-color;
   }
 }
 </style>
@@ -4852,6 +4569,655 @@ withDefaults(defineProps<Props>(), {
 </style>
 ```
 
+## File: layers/base/app/components/hm/HmSliderItem.vue
+```vue
+<template>
+  <div
+    :id="props.id"
+    class="slider-item"
+    role="tabpanel"
+  >
+    <div
+      class="slider-content"
+      role="presentation"
+    >
+      <slot />
+    </div>
+  </div>
+</template>
+
+<script lang="ts" setup>
+const props = defineProps<{
+  id: string
+}>()
+</script>
+
+<style lang="scss" scoped>
+.slider-content {
+  width: 100%;
+  height: 100%;
+}
+</style>
+```
+
+## File: layers/base/app/components/hm/HmSocialShareLink.vue
+```vue
+<template>
+  <!--
+  - [x] Composition APIで書けている
+  - [-] Nuxt.jsに依存していない
+  - [-] unplugin-auto-import を導入する前提の書き方ができている
+  - [-] ロジック観点でのリファクタリング(FS主管)が完了している
+  - [-] デザイン観点でのリファクタリング(DD主管)が完了している
+  - [-] 適切にコメントが記載されている
+  - [-] Unit Testを通過している
+  - [-] storiesが適切に記載されている
+ -->
+  <HaLink
+    class="hm-social-share-link"
+    :to="url"
+    :blank="true"
+  >
+    <slot />
+  </HaLink>
+</template>
+
+<script setup lang="ts">
+const _shareTargetServices = {
+  0: 'twitter',
+  1: 'facebook',
+  2: 'line',
+} as const
+type SharedTarget
+  = (typeof _shareTargetServices)[keyof typeof _shareTargetServices]
+
+const props = defineProps<{
+  name: SharedTarget | null
+  text?: string
+  twitterHashtags?: string[]
+  shareUrl?: string
+}>()
+
+const socialShareLink = useSocialShareLink()
+const url = computed(() => socialShareLink.getShareUrl(props.name || '', props))
+</script>
+```
+
+## File: layers/base/app/components/ho/.gitkeep
+```
+
+```
+
+## File: layers/base/app/components/ht/.gitkeep
+```
+
+```
+
+## File: layers/base/app/layouts/default.vue
+```vue
+<template>
+  <div class="layout -default">
+    <h1 class="heading">
+      Base App Nuxt3
+    </h1>
+    <slot />
+  </div>
+</template>
+
+<style lang="scss" scoped>
+.layout.-default {
+  overflow-x: hidden;
+}
+</style>
+```
+
+## File: layers/base/app/components/ha/HaLink.vue
+```vue
+<template>
+  <component
+    :is="component"
+    class="ha-link"
+    v-bind="{ [isNuxtLink ? 'to' : 'href']: linkTo }"
+    :target="blank ? '_blank' : undefined"
+    :rel="rel"
+  >
+    <slot />
+  </component>
+</template>
+
+<script setup lang="ts">
+import { LocationQuery, parseQuery, stringifyQuery } from 'vue-router'
+
+const props = withDefaults(
+  defineProps<{
+    to: string
+    blank?: boolean
+    rel?: HTMLAnchorElement['rel']
+    forceAnchorLink?: boolean
+    noLocale?: boolean
+    // to に ?query / #hash を直接書ける。以下 2 つは後方互換のために残してある
+    query?: LocationQuery
+    // 「#」を先頭につけること
+    hash?: string
+  }>(),
+  {
+    blank: false,
+    rel: undefined,
+    forceAnchorLink: false,
+    noLocale: false,
+    query: undefined,
+    hash: undefined,
+  },
+)
+const isExternalReference = computed(() => !!props.to?.match(/^https?:\/\//))
+const isNuxtLink = computed(
+  // FIXME: isNuxtEnvironment() が壊れている
+  () =>
+    /* isNuxtEnvironment() && */ !props.forceAnchorLink
+    && !isExternalReference.value,
+)
+const component = computed(() =>
+  isNuxtLink.value ? resolveComponent('nuxt-link') : 'a',
+)
+const linkTo = computed(() => {
+  if (!isNuxtLink.value) {
+    return toUrl(props)
+  }
+
+  const localePath = useLocalePath()
+  // 文字列を渡せば ufo の parsePath が query / hash を分離し、ロケール prefix も正しく付く
+  return localePath(toUrl(props))
+})
+const toUrl = ({
+  to,
+  query,
+  hash,
+}: {
+  to: string
+  query?: LocationQuery
+  hash?: string
+}) => {
+  // prop の指定が無ければ to をそのまま返す。既存の to を再エンコードしない
+  if (!query && hash === undefined) {
+    return to
+  }
+
+  const [beforeHash = '', ...hashParts] = to.split('#')
+  const embeddedHash = hashParts.length > 0 ? `#${hashParts.join('#')}` : ''
+  const [path = '', ...queryParts] = beforeHash.split('?')
+  const embeddedQuery = queryParts.join('?')
+
+  // 同じキーは prop 側を優先する
+  const mergedQuery = { ...parseQuery(embeddedQuery), ...query }
+  const queryStr
+    = Object.keys(mergedQuery).length > 0 ? `?${stringifyQuery(mergedQuery)}` : ''
+
+  return `${path}${queryStr}${hash ?? embeddedHash}`
+}
+</script>
+```
+
+## File: layers/base/app/components/ha/HaLoading.vue
+```vue
+<template>
+  <div
+    v-if="loading"
+    class="ha-loading"
+  >
+    <template v-if="cover">
+      <div class="cover" />
+    </template>
+    <div class="loader spinner-container">
+      <svg
+        class="spinner"
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 70 70"
+        width="120px"
+        height="120px"
+      >
+        <path
+          d="M65,35c0-16.57-13.43-30-30-30S5,18.43,5,35H0C0,15.67,15.67,0,35,0s35,15.67,35,35h-5Z"
+          fill="#0583f2"
+        >
+          <animateTransform
+            attributeName="transform"
+            attributeType="XML"
+            type="rotate"
+            from="0,35,35"
+            to="360,35,35"
+            dur="2s"
+            repeatCount="indefinite"
+          />
+        </path>
+      </svg>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+const props = withDefaults(
+  defineProps<{
+    manual?: boolean
+    cover?: boolean
+  }>(),
+  {
+    manual: false,
+    cover: false,
+  },
+)
+
+/*
+ * ここでの `manual` とは auto start の意味であり、Nuxtのloading機能を使わず
+ * 自前で（外側からv-ifを使って）loadingを出すためのもの
+ */
+const loading = ref(props.manual)
+</script>
+
+<style lang="scss" scoped>
+@use '#base/app/assets/styles/variables' as v;
+
+.ha-loading {
+  position: fixed;
+  z-index: v.$zindex-loading;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 100vw;
+  height: 100vh;
+
+  background: rgb(0 0 0 / 70%);
+
+  > .cover {
+    position: absolute;
+    width: 100vw;
+    height: 100vh;
+    background-color: v.$white;
+  }
+}
+
+.spinner-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 120px;
+  height: 120px;
+  margin: auto;
+
+  > .spinner {
+    display: block;
+
+    width: 120px;
+    max-width: 50%;
+    height: 120px;
+    max-height: 50%;
+    margin: auto;
+  }
+}
+</style>
+```
+
+## File: layers/base/app/components/hm/input/HmInputFile.vue
+```vue
+<template>
+  <!-- TODO: エラーメッセージの表示をする際に、必要に応じてHmInputTextBase.vue同様の修正(DOM構造とエラーmsgのstyle)を行う -->
+  <label
+    ref="box"
+    :class="['hm-input-file', { '-dragover': isDragOver }]"
+    @dragenter.prevent="toggleDragOver(true)"
+    @dragleave.prevent="toggleDragOver(false)"
+    @dragover.prevent
+    @drop.prevent="onDrop($event)"
+  >
+    <HaBaseInput
+      ref="fileInput"
+      class="input"
+      type="file"
+      name="file"
+      :accept="accept"
+      :multiple="multiple"
+      :files="files"
+      :required="required"
+      @click="onClick"
+      @change="onChange($event)"
+    />
+    <div class="image-box">
+      <slot>
+        <div class="inner">
+          <span class="text"> Select file or drag it! </span>
+        </div>
+      </slot>
+    </div>
+  </label>
+</template>
+
+<script lang="ts" setup>
+import { z } from 'zod/v3'
+import { isValueOf } from '#base/app/utils/zod'
+
+const htmlInputElementAndFilesSchema = z.instanceof(HTMLInputElement).and(
+  z.object({
+    files: z.instanceof(FileList),
+  }),
+)
+
+type Props = {
+  required?: boolean
+  accept?: string
+  multiple?: boolean
+  propFiles?: FileList
+}
+const props = withDefaults(defineProps<Props>(), {
+  required: false,
+  accept: '',
+  multiple: false,
+  propFiles: undefined,
+})
+
+type Emits = {
+  (e: 'input:multiple' | 'input:single', files: FileList): void
+  (e: 'cancel'): void
+}
+const emit = defineEmits<Emits>()
+
+const fileInput = ref<HTMLInputElement>()
+const isDragOver = ref(false)
+const clickListener = ref<((evt: Event) => void) | null>(null)
+
+const files = computed({
+  get: () => props.propFiles,
+  set: (files?: FileList) => {
+    if (!files) return
+    if (props.multiple) {
+      emit('input:multiple', files)
+    }
+    if (!props.multiple) {
+      emit('input:single', files)
+    }
+  },
+})
+
+onMounted(() => {
+  if (!isValueOf(htmlInputElementAndFilesSchema, fileInput.value)) {
+    return
+  }
+
+  clickListener.value = () => {
+    window.onfocus = () => {
+      setTimeout(() => {
+        if (fileInput.value?.files?.length === 0) {
+          emit('cancel')
+        }
+      }, 500)
+    }
+    window.onload = null
+  }
+  fileInput.value.addEventListener('click', clickListener.value)
+})
+
+onBeforeUnmount(() => {
+  if (
+    isValueOf(htmlInputElementAndFilesSchema, fileInput.value)
+    && clickListener.value
+  ) {
+    fileInput.value.removeEventListener('click', clickListener.value)
+  }
+})
+
+const toggleDragOver = (isDragover: boolean) => {
+  isDragOver.value = isDragover
+}
+
+const onDrop = (event: DragEvent) => {
+  toggleDragOver(false)
+  if (event?.dataTransfer) {
+    files.value = event?.dataTransfer?.files
+  }
+}
+
+const onChange = (event: Event) => {
+  const target: (EventTarget & { files?: FileList }) | null = event?.target
+  if (target !== null && !(target?.files instanceof FileList)) {
+    throw new Error('Illegal. This functions is only for file input elements')
+  }
+  if (target?.files) {
+    files.value = target.files
+  }
+}
+
+const onClick = () => {
+  // todo: 同じファイルを二回開けないのでclick時空にする
+  if (fileInput.value instanceof HTMLInputElement) {
+    fileInput.value.value = ''
+  }
+}
+</script>
+
+<style lang="scss" scoped>
+@use '#base/app/assets/styles/mixins' as m;
+@use '#base/app/assets/styles/variables' as v;
+
+.hm-input-file {
+  cursor: pointer;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+
+  &.-dragover {
+    cursor: pointer;
+    opacity: 0.8;
+  }
+
+  &:hover {
+    opacity: 0.7;
+  }
+
+  @include m.sp {
+    &:hover {
+      opacity: inherit;
+    }
+
+    &:active {
+      opacity: 0.7;
+    }
+  }
+
+  > .input {
+    display: none;
+    width: 0;
+    height: 0;
+    visibility: hidden;
+  }
+
+  > .error {
+    display: block;
+
+    width: fit-content;
+
+    font-size: 10px;
+    font-weight: 400;
+    color: v.$red;
+  }
+}
+
+.image-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 100%;
+  height: 100%;
+
+  > .inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 100%;
+    height: 100%;
+
+    background-color: #d5d5d5;
+  }
+
+  > .inner > .text {
+    color: v.$base-font-color;
+  }
+}
+</style>
+```
+
+## File: layers/base/app/components/hm/HmClipping.vue
+```vue
+<template>
+  <div class="hm-clipping">
+    <div class="cropper-container">
+      <Cropper
+        ref="cropper"
+        class="cropper"
+        :src="src"
+        :autoZoom="autoZoom"
+        :stencilSize="{
+          width: width,
+          height: height,
+        }"
+        v-bind="cropperOptions"
+        defaultBoundaries="fit"
+        :imageRestriction="imageRestriction"
+        :style="forceStyle"
+        @change="onChange"
+      />
+    </div>
+    <template v-if="src">
+      <HaBaseButton
+        class="button"
+        @click="clip"
+      >
+        <!-- {{ i18n.t('label') }} -->
+        切り抜く
+      </HaBaseButton>
+    </template>
+  </div>
+</template>
+
+<script lang="ts" setup>
+import { Cropper } from 'vue-advanced-cropper'
+import 'vue-advanced-cropper/dist/style.css'
+
+type Props = {
+  src: string
+  width?: number
+  height?: number
+  cropperAreaHeight?: number
+  doResize?: boolean
+  stencil?: string
+  imageRestriction?: 'fill-area' | 'fit-area' | 'stencil' | 'none'
+  autoZoom?: boolean
+  ext?: string
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  width: 256,
+  height: 256,
+  cropperAreaHeight: undefined,
+  doResize: true,
+  stencil: 'RectangleStencil',
+  imageRestriction: 'stencil',
+  autoZoom: false,
+  ext: 'jpeg',
+})
+
+type Emits = {
+  (e: 'clipped', image: File[]): void
+}
+const emit = defineEmits<Emits>()
+
+const croppedImage = ref<File[]>([])
+
+const forceStyle = computed(() => {
+  if (props.cropperAreaHeight === undefined) return {}
+  const cropperAreaHeight = props.cropperAreaHeight || props.height * 1.4
+  return {
+    height: `${cropperAreaHeight}px`,
+  }
+})
+const cropperOptions = computed(() => {
+  return props.doResize
+    ? {
+        canvas: {
+          width: props.width,
+          height: props.height,
+        },
+      }
+    : {}
+})
+
+const onChange = ({ canvas }: { canvas?: HTMLCanvasElement }) => {
+  if (!canvas) return
+
+  /*
+   * this.coordinates = coordinates
+   * note: canvas to DataURI
+   * this.croppedImage = canvas.toDataURL(`image/${this.ext}`)
+   */
+  const data = canvas.toDataURL(`image/${props.ext}`)
+  // note: DataURL to File
+  const bytes = atob(data.split(',')[1] ?? raiseError('Invalid bytes'))
+  const mime
+    = data.split(',')[0]?.split(':')[1]?.split(';')[0]
+      ?? raiseError('Invalid mime')
+  const name = `tmp-${new Date().getTime()}.${mime.split('/')[1]}`
+  const writer = new Uint8Array(new ArrayBuffer(bytes.length))
+  for (let i = 0; i < bytes.length; i++) {
+    writer[i] = bytes.charCodeAt(i)
+  }
+  const file = new File([writer.buffer], name, { type: mime })
+  croppedImage.value[0] = file
+}
+
+const clip = () => {
+  emit('clipped', croppedImage.value)
+}
+</script>
+
+<style lang="scss" scoped>
+@use '@/assets/styles/variables' as v;
+@use '@/assets/styles/mixins' as m;
+
+.hm-clipping {
+  width: 100%;
+  height: 100%;
+
+  > .cropper-container {
+    height: calc(100% - 70px);
+    min-height: 300px;
+    margin-bottom: 20px;
+    padding: v.space(2);
+
+    background: #000;
+  }
+
+  > .cropper-container > .cropper {
+    height: 100%;
+    background: #000;
+  }
+
+  > .button {
+    width: 100%;
+    padding: v.$space-small;
+    color: v.$white;
+    background-color: v.$primary-button-default-color;
+
+    :hover {
+      background-color: v.$primary-button-active-color;
+    }
+  }
+}
+</style>
+```
+
 ## File: layers/base/app/components/hm/HmSlider.vue
 ```vue
 <template>
@@ -5184,10 +5550,9 @@ const updateCurrentSlide = (
     }
   }
 
-  const slideJumpByPagination = () => {
+  const slideJumpByPagination = (paginationIndex: number) => {
     previousX.value = (100 / props.amount) * currentSlide.value
-    if (index === undefined) return
-    currentSlide.value = index * -1
+    currentSlide.value = paginationIndex * -1
     nextX.value = (100 / props.amount) * currentSlide.value
   }
 
@@ -5222,7 +5587,7 @@ const updateCurrentSlide = (
 
   // ページネーションによるスライド移動の場合
   if (type === 'pagination' && index !== undefined) {
-    return slideJumpByPagination()
+    return slideJumpByPagination(index)
   }
 }
 
@@ -5445,360 +5810,6 @@ onBeforeUnmount(() => stopAutoPlay())
           padding-inline: calc(var(--gap-sp) * 0.5);
         }
       }
-    }
-  }
-}
-</style>
-```
-
-## File: layers/base/app/components/hm/HmSliderItem.vue
-```vue
-<template>
-  <div
-    :id="props.id"
-    class="slider-item"
-    role="tabpanel"
-  >
-    <div
-      class="slider-content"
-      role="presentation"
-    >
-      <slot />
-    </div>
-  </div>
-</template>
-
-<script lang="ts" setup>
-const props = defineProps<{
-  id: string
-}>()
-</script>
-
-<style lang="scss" scoped>
-.slider-content {
-  width: 100%;
-  height: 100%;
-}
-</style>
-```
-
-## File: layers/base/app/components/hm/HmSocialShareLink.vue
-```vue
-<template>
-  <!--
-  - [x] Composition APIで書けている
-  - [-] Nuxt.jsに依存していない
-  - [-] unplugin-auto-import を導入する前提の書き方ができている
-  - [-] ロジック観点でのリファクタリング(FS主管)が完了している
-  - [-] デザイン観点でのリファクタリング(DD主管)が完了している
-  - [-] 適切にコメントが記載されている
-  - [-] Unit Testを通過している
-  - [-] storiesが適切に記載されている
- -->
-  <HaLink
-    class="hm-social-share-link"
-    :to="url"
-    :blank="true"
-  >
-    <slot />
-  </HaLink>
-</template>
-
-<script setup lang="ts">
-const _shareTargetServices = {
-  0: 'twitter',
-  1: 'facebook',
-  2: 'line',
-} as const
-type SharedTarget
-  = (typeof _shareTargetServices)[keyof typeof _shareTargetServices]
-
-const props = defineProps<{
-  name: SharedTarget | null
-  text?: string
-  twitterHashtags?: string[]
-  shareUrl?: string
-}>()
-
-const socialShareLink = useSocialShareLink()
-const url = computed(() => socialShareLink.getShareUrl(props.name || '', props))
-</script>
-```
-
-## File: layers/base/app/components/ho/.gitkeep
-```
-
-```
-
-## File: layers/base/app/components/ht/.gitkeep
-```
-
-```
-
-## File: layers/base/app/layouts/default.vue
-```vue
-<template>
-  <div class="layout -default">
-    <h1 class="heading">
-      Base App Nuxt3
-    </h1>
-    <slot />
-  </div>
-</template>
-
-<style lang="scss" scoped>
-.layout.-default {
-  overflow-x: hidden;
-}
-</style>
-```
-
-## File: layers/base/app/components/ha/HaLoading.vue
-```vue
-<template>
-  <div
-    v-if="loading"
-    class="ha-loading"
-  >
-    <template v-if="cover">
-      <div class="cover" />
-    </template>
-    <div class="loader spinner-container">
-      <svg
-        class="spinner"
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 70 70"
-        width="120px"
-        height="120px"
-      >
-        <path
-          d="M65,35c0-16.57-13.43-30-30-30S5,18.43,5,35H0C0,15.67,15.67,0,35,0s35,15.67,35,35h-5Z"
-          fill="#0583f2"
-        >
-          <animateTransform
-            attributeName="transform"
-            attributeType="XML"
-            type="rotate"
-            from="0,35,35"
-            to="360,35,35"
-            dur="2s"
-            repeatCount="indefinite"
-          />
-        </path>
-      </svg>
-    </div>
-  </div>
-</template>
-
-<script setup lang="ts">
-const props = withDefaults(
-  defineProps<{
-    manual?: boolean
-    cover?: boolean
-  }>(),
-  {
-    manual: false,
-    cover: false,
-  },
-)
-
-/*
- * ここでの `manual` とは auto start の意味であり、Nuxtのloading機能を使わず
- * 自前で（外側からv-ifを使って）loadingを出すためのもの
- */
-const loading = ref(props.manual)
-</script>
-
-<style lang="scss" scoped>
-@use '#base/app/assets/styles/variables' as v;
-
-.ha-loading {
-  position: fixed;
-  z-index: v.$zindex-loading;
-  inset: 0;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  width: 100vw;
-  height: 100vh;
-
-  background: rgb(0 0 0 / 70%);
-
-  > .cover {
-    position: absolute;
-    width: 100vw;
-    height: 100vh;
-    background-color: v.$white;
-  }
-}
-
-.spinner-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  width: 120px;
-  height: 120px;
-  margin: auto;
-
-  > .spinner {
-    display: block;
-
-    width: 120px;
-    max-width: 50%;
-    height: 120px;
-    max-height: 50%;
-    margin: auto;
-  }
-}
-</style>
-```
-
-## File: layers/base/app/components/hm/HmClipping.vue
-```vue
-<template>
-  <div class="hm-clipping">
-    <div class="cropper-container">
-      <Cropper
-        ref="cropper"
-        class="cropper"
-        :src="src"
-        :autoZoom="autoZoom"
-        :stencilSize="{
-          width: width,
-          height: height,
-        }"
-        v-bind="cropperOptions"
-        defaultBoundaries="fit"
-        :imageRestriction="imageRestriction"
-        :style="forceStyle"
-        @change="onChange"
-      />
-    </div>
-    <template v-if="src">
-      <HaBaseButton
-        class="button"
-        @click="clip"
-      >
-        <!-- {{ i18n.t('label') }} -->
-        切り抜く
-      </HaBaseButton>
-    </template>
-  </div>
-</template>
-
-<script lang="ts" setup>
-import { Cropper } from 'vue-advanced-cropper'
-import 'vue-advanced-cropper/dist/style.css'
-
-type Props = {
-  src: string
-  width?: number
-  height?: number
-  cropperAreaHeight?: number
-  doResize?: boolean
-  stencil?: string
-  imageRestriction?: 'fill-area' | 'fit-area' | 'stencil' | 'none'
-  autoZoom?: boolean
-  ext?: string
-}
-
-const props = withDefaults(defineProps<Props>(), {
-  width: 256,
-  height: 256,
-  cropperAreaHeight: undefined,
-  doResize: true,
-  stencil: 'RectangleStencil',
-  imageRestriction: 'stencil',
-  autoZoom: false,
-  ext: 'jpeg',
-})
-
-type Emits = {
-  (e: 'clipped', image: File[]): void
-}
-const emit = defineEmits<Emits>()
-
-const croppedImage = ref<File[]>([])
-
-const forceStyle = computed(() => {
-  if (props.cropperAreaHeight === undefined) return {}
-  const cropperAreaHeight = props.cropperAreaHeight || props.height * 1.4
-  return {
-    height: `${cropperAreaHeight}px`,
-  }
-})
-const cropperOptions = computed(() => {
-  return props.doResize
-    ? {
-        canvas: {
-          width: props.width,
-          height: props.height,
-        },
-      }
-    : {}
-})
-
-const onChange = ({ canvas }: { canvas?: HTMLCanvasElement }) => {
-  if (!canvas) return
-
-  /*
-   * this.coordinates = coordinates
-   * note: canvas to DataURI
-   * this.croppedImage = canvas.toDataURL(`image/${this.ext}`)
-   */
-  const data = canvas.toDataURL(`image/${props.ext}`)
-  // note: DataURL to File
-  const bytes = atob(data.split(',')[1] ?? raiseError('Invalid bytes'))
-  const mime
-    = data.split(',')[0]?.split(':')[1]?.split(';')[0]
-      ?? raiseError('Invalid mime')
-  const name = `tmp-${new Date().getTime()}.${mime.split('/')[1]}`
-  const writer = new Uint8Array(new ArrayBuffer(bytes.length))
-  for (let i = 0; i < bytes.length; i++) {
-    writer[i] = bytes.charCodeAt(i)
-  }
-  const file = new File([writer.buffer], name, { type: mime })
-  croppedImage.value[0] = file
-}
-
-const clip = () => {
-  emit('clipped', croppedImage.value)
-}
-</script>
-
-<style lang="scss" scoped>
-@use '@/assets/styles/variables' as v;
-@use '@/assets/styles/mixins' as m;
-
-.hm-clipping {
-  width: 100%;
-  height: 100%;
-
-  > .cropper-container {
-    height: calc(100% - 70px);
-    min-height: 300px;
-    margin-bottom: 20px;
-    padding: v.space(2);
-
-    background: #000;
-  }
-
-  > .cropper-container > .cropper {
-    height: 100%;
-    background: #000;
-  }
-
-  > .button {
-    width: 100%;
-    padding: v.$space-small;
-    color: v.$white;
-    background-color: v.$primary-button-default-color;
-
-    :hover {
-      background-color: v.$primary-button-active-color;
     }
   }
 }

@@ -11,25 +11,33 @@ export default defineVitestConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      reportsDirectory: '../coverage',
+      reportsDirectory: './coverage',
       reportOnFailure: true,
       allowExternal: true,
       include: ['**/*.{vue,ts}'],
       exclude: [
+        '**/.nuxt/**',
+        '**/coverage/**',
         'plugins/**',
         'middleware/**',
         'layouts/**',
         'test/**',
       ],
+      thresholds: {
+        statements: 100,
+        branches: 100,
+        functions: 100,
+        lines: 100,
+      },
     },
     setupFiles: ['app/test/setup.ts'],
     alias: {
-      '#base': path.resolve(__dirname, '.'),
+      '#base': path.resolve(import.meta.dirname, '.'),
     },
   },
   resolve: {
     alias: {
-      '#base': path.resolve(__dirname, '.'),
+      '#base': path.resolve(import.meta.dirname, '.'),
     },
   },
 })

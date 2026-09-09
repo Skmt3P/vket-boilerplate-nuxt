@@ -133,7 +133,10 @@ layers/
           api.spec.ts
           factory.spec.ts
           i18n.spec.ts
+        config.spec.ts
+        error.spec.ts
         setup.ts
+        source.spec.ts
       utils/
         api.ts
         factory.ts
@@ -951,7 +954,7 @@ declare module '*.svg?inline'
 
 ## File: layers/main/app/assets/styles/_reset.scss
 ````scss
-@forward 'ress';
+@forward 'ress/ress.css';
 
 ol,
 ul {
@@ -2215,6 +2218,158 @@ export default defineAppConfig(
 )
 ````
 
+## File: layers/main/nuxt.config.ts
+````typescript
+import { defineNuxtConfig } from 'nuxt/config'
+import path from 'path'
+import { readEnvType } from './config/models/EnvType'
+import { getRuntimeConfigOfEnvType } from './config/runtimeConfig'
+import { nuxtI18nOptions } from './i18n/i18n.config'
+
+type MetaInfo = {
+  title: string
+  description: string
+  robots: string
+  siteName: string
+  ogImageUrl: string
+  ogUrl: string
+  twitterSite: string
+  twitterCreator: string
+}
+
+const NUXT_ENV_OUTPUT_ENV = readEnvType(process.env)
+const runtimeConfig = getRuntimeConfigOfEnvType(
+  NUXT_ENV_OUTPUT_ENV,
+  process.env,
+)
+const cssUrls = [`@/assets/styles/style.scss`]
+const srcDir = 'app'
+const isSsr = false
+const checkTypeCheckOnBuild = true
+const needAnalyze = NUXT_ENV_OUTPUT_ENV === 'local'
+const needSourcemap = NUXT_ENV_OUTPUT_ENV !== 'production'
+const enableDebug = NUXT_ENV_OUTPUT_ENV === 'local'
+
+const meta: MetaInfo = {
+  title: '',
+  description: '',
+  robots: NUXT_ENV_OUTPUT_ENV === 'production' ? 'all' : 'none',
+  siteName: '',
+  ogImageUrl: `${runtimeConfig.public.url}/images/ogp.jpg`,
+  ogUrl: runtimeConfig.public.url,
+  twitterSite: 'https://x.com/',
+  twitterCreator: 'https://x.com/',
+}
+
+// https://nuxt.com/docs/api/configuration/nuxt-config
+export default defineNuxtConfig({
+  extends: path.resolve(__dirname, '../base'),
+  modules: [
+    '@nuxtjs/google-fonts',
+  ],
+  ssr: isSsr,
+
+  imports: {
+    dirs: ['utils/types/**'],
+    global: false,
+  },
+
+  app: {
+    head: {
+      meta: [
+        { name: 'robots', content: meta.robots },
+        {
+          name: 'description',
+          content: meta.description,
+        },
+        {
+          property: 'og:site_name',
+          content: meta.siteName,
+        },
+        {
+          property: 'og:url',
+          content: meta.ogUrl,
+        },
+        {
+          property: 'og:title',
+          content: meta.title,
+        },
+        {
+          property: 'og:description',
+          content: meta.description,
+        },
+        {
+          property: 'og:image',
+          content: meta.ogImageUrl,
+        },
+        {
+          name: 'twitter:site',
+          content: meta.twitterSite,
+        },
+        {
+          name: 'twitter:creator',
+          content: meta.twitterCreator,
+        },
+      ],
+      link: [
+        {
+          rel: 'icon',
+          type: 'image/x-icon',
+          href: `${runtimeConfig.public.url}/favicon.ico`,
+        },
+      ],
+    },
+  },
+
+  css: cssUrls,
+  runtimeConfig,
+  dir: {
+    public: path.resolve(__dirname, './public'),
+  },
+  rootDir: __dirname,
+  srcDir: `${srcDir}/`,
+
+  alias: {
+    '#base': path.resolve(__dirname, '../base'),
+    '#main': __dirname,
+    '@': path.resolve(__dirname, './app'),
+  },
+
+  ignore: [
+    '.output',
+    '**/test/*.{js,ts,jsx,tsx}',
+    '**/*.{spec,test}.{js,ts,jsx,tsx}',
+    '**/-*.*',
+  ],
+
+  build: {
+    analyze: needAnalyze,
+  },
+
+  sourcemap: {
+    server: needSourcemap,
+    client: needSourcemap,
+  },
+
+  compatibilityDate: '2024-04-03',
+
+  typescript: {
+    typeCheck: checkTypeCheckOnBuild,
+  },
+
+  debug: process.env.VITEST === 'true' ? false : enableDebug,
+
+  googleFonts: {
+    families: {
+      'Noto+Sans+JP': [100, 300, 400, 500, 700, 900],
+    },
+    display: 'swap',
+  },
+
+  i18n: nuxtI18nOptions,
+})
+````
+
 ## File: layers/main/tsconfig.json
 ````json
 {
@@ -2733,6 +2888,242 @@ describe('defaultRepositories', () => {
 })
 ````
 
+## File: layers/main/app/test/config.spec.ts
+````typescript
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getAppConfigOfEnvType } from '../../config/appConfig'
+import {
+  allEnvTypes,
+  ensureEnvType,
+  isEnvType,
+  readEnvType,
+} from '../../config/models/EnvType'
+import { getRuntimeConfigOfEnvType } from '../../config/runtimeConfig'
+
+describe('main environment configuration', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('supports the four declared environments', () => {
+    expect(allEnvTypes).toEqual(['local', 'development', 'staging', 'production'])
+    for (const envType of allEnvTypes) {
+      expect(isEnvType(envType)).toBe(true)
+      expect(() => ensureEnvType(envType)).not.toThrow()
+    }
+    expect(isEnvType('preview')).toBe(false)
+    expect(isEnvType(null)).toBe(false)
+    expect(() => ensureEnvType('preview')).toThrowError(
+      new TypeError('Not an EnvType.'),
+    )
+  })
+
+  it('reads a valid environment and falls back to local when absent', () => {
+    expect(readEnvType({ VITE_OUTPUT_ENV: 'staging' })).toBe('staging')
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    expect(readEnvType({})).toBe('local')
+    expect(error).toHaveBeenCalledWith('No VITE_OUTPUT_ENV is set.')
+    expect(() => readEnvType({ VITE_OUTPUT_ENV: 'preview' })).toThrow(
+      'Not an EnvType.',
+    )
+  })
+
+  it.each(allEnvTypes)('creates app config for %s', (envType) => {
+    expect(getAppConfigOfEnvType(envType, {})).toEqual({})
+  })
+
+  it.each([
+    {
+      envType: 'local' as const,
+      url: 'http://localhost:3000',
+      httpBinUrl: 'http://localhost:3003',
+    },
+    {
+      envType: 'development' as const,
+      url: 'http://localhost:3000',
+      httpBinUrl: undefined,
+    },
+    { envType: 'staging' as const, url: '', httpBinUrl: undefined },
+    { envType: 'production' as const, url: '', httpBinUrl: undefined },
+  ])('creates runtime config for $envType', ({ envType, url, httpBinUrl }) => {
+    const config = getRuntimeConfigOfEnvType(envType, {})
+
+    expect(config.public).toMatchObject({
+      apiPrefix: process.env.NUXT_API_PREFIX ?? '/api/v1',
+      baseUrl: url,
+      gtmId: 'GTM-XXXXXXX',
+      outputEnv: envType,
+      url,
+    })
+    expect('httpBinUrl' in config.public ? config.public.httpBinUrl : undefined)
+      .toBe(httpBinUrl)
+  })
+})
+````
+
+## File: layers/main/app/test/error.spec.ts
+````typescript
+import ErrorPage from '../error.vue'
+import { mockNuxtImport } from '@nuxt/test-utils/runtime'
+import { mount } from '@vue/test-utils'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createI18n } from 'vue-i18n'
+import { createError } from 'nuxt/app'
+
+const { clearErrorMock, navigateToMock } = vi.hoisted(() => ({
+  clearErrorMock: vi.fn(),
+  navigateToMock: vi.fn(),
+}))
+mockNuxtImport('clearError', () => clearErrorMock)
+mockNuxtImport('navigateTo', () => navigateToMock)
+
+const messages = {
+  ja: {
+    back_home: 'ホームに戻る',
+    back_previous: '前のページに戻る',
+    details: 'エラー内容',
+    error_404: 'ページが見つかりません',
+    error_500: 'サーバーエラー',
+    error_other: '予期しないエラー',
+    description_404: '404 description',
+    description_500: '500 description',
+    description_other: 'other description',
+  },
+  en: {
+    back_home: 'Back home',
+    back_previous: 'Back',
+    details: 'Details',
+    error_404: 'Not found',
+    error_500: 'Server error',
+    error_other: 'Unexpected error',
+    description_404: '404 description',
+    description_500: '500 description',
+    description_other: 'other description',
+  },
+}
+
+const mountError = (statusCode: number, message = '') => mount(ErrorPage, {
+  props: {
+    error: createError({
+      statusCode,
+      statusMessage: '',
+      message,
+    }),
+  },
+  global: {
+    plugins: [createI18n({ legacy: false, locale: 'ja', messages })],
+  },
+})
+
+describe('main error page', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it.each([
+    { statusCode: 404, title: 'ページが見つかりません', description: 'お探しのページは見つかりませんでした。URLをご確認いただくか、ホームページに戻ってもう一度お試しください。' },
+    { statusCode: 500, title: 'サーバーエラー', description: 'サーバーに問題が発生しています。しばらく時間をおいてから再度お試しください。' },
+    { statusCode: 418, title: '予期しないエラー', description: '申し訳ございませんが、予期しないエラーが発生しました。' },
+  ])('renders status $statusCode', ({ statusCode, title, description }) => {
+    const wrapper = mountError(statusCode, 'diagnostic')
+
+    expect(wrapper.get('.error-code').text()).toBe(String(statusCode))
+    expect(wrapper.get('.error-title').text()).toBe(title)
+    expect(wrapper.get('.error-description').text()).toBe(description)
+    expect(wrapper.get('.error-message').text()).toBe('diagnostic')
+  })
+
+  it('clears the error and redirects home', async () => {
+    const wrapper = mountError(500)
+
+    await wrapper.get('.-primary').trigger('click')
+
+    expect(clearErrorMock).toHaveBeenCalledWith({ redirect: '/' })
+    expect(wrapper.find('details').exists()).toBe(false)
+  })
+
+  it('uses browser history when a previous page exists', async () => {
+    const wrapper = mountError(404)
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => {})
+    Object.defineProperty(window.history, 'length', { configurable: true, value: 2 })
+
+    await wrapper.get('.-secondary').trigger('click')
+
+    expect(back).toHaveBeenCalledOnce()
+    expect(navigateToMock).not.toHaveBeenCalled()
+  })
+
+  it('navigates home when there is no previous page', async () => {
+    const wrapper = mountError(404)
+    Object.defineProperty(window.history, 'length', { configurable: true, value: 1 })
+
+    await wrapper.get('.-secondary').trigger('click')
+
+    expect(navigateToMock).toHaveBeenCalledWith('/')
+  })
+})
+````
+
+## File: layers/main/app/test/source.spec.ts
+````typescript
+import { shallowMount } from '@vue/test-utils'
+import { describe, expect, it } from 'vitest'
+import { createI18n } from 'vue-i18n'
+import App from '../app.vue'
+import HoTheFooter from '../components/ho/HoTheFooter.vue'
+import HoTheHeader from '../components/ho/HoTheHeader.vue'
+import HtTop from '../components/ht/HtTop.vue'
+import { jsonSchema } from '../models/json'
+import { todoSchema } from '../models/todo'
+import { repositories, repositoryFactory } from '../utils/factory'
+
+describe('main layer source', () => {
+  const i18n = createI18n({
+    legacy: false,
+    locale: 'ja',
+    messages: { ja: {}, en: {} },
+  })
+
+  it.each([HoTheHeader, HoTheFooter, HtTop])(
+    'renders a structural component',
+    (component) => {
+      expect(shallowMount(component).exists()).toBe(true)
+    },
+  )
+
+  it('renders the application shell', () => {
+    const wrapper = shallowMount(App, {
+      global: {
+        plugins: [i18n],
+        stubs: {
+          NuxtLayout: { template: '<main><slot /></main>' },
+          NuxtRouteAnnouncer: true,
+          NuxtWelcome: true,
+        },
+      },
+    })
+    expect(wrapper.find('main').exists()).toBe(true)
+  })
+
+  it('validates JSON and todos', () => {
+    expect(jsonSchema.parse({ nested: [null, true, 1, 'value'] })).toEqual({
+      nested: [null, true, 1, 'value'],
+    })
+    expect(todoSchema.parse({
+      userId: 1,
+      id: 2,
+      title: 'test',
+      completed: false,
+    })).toMatchObject({ id: 2, completed: false })
+  })
+
+  it('returns a local repository', () => {
+    expect(repositoryFactory.get('example')).toBe(repositories.example)
+  })
+})
+````
+
 ## File: layers/main/app/utils/api.ts
 ````typescript
 import type { FetchOptions } from 'ofetch'
@@ -2814,163 +3205,6 @@ export type UseI18nReturnType<Options extends UseI18nOptions = UseI18nOptions>
  */
 export const getI18nArray = (i18n: UseI18nReturnType, key: string): string[] =>
   Object.entries<VueMessageType>(i18n.tm(key)).map(([, term]) => i18n.rt(term))
-````
-
-## File: layers/main/nuxt.config.ts
-````typescript
-import { defineNuxtConfig } from 'nuxt/config'
-import path from 'path'
-import { readEnvType } from './config/models/EnvType'
-import { getRuntimeConfigOfEnvType } from './config/runtimeConfig'
-import { nuxtI18nOptions } from './i18n/i18n.config'
-
-type MetaInfo = {
-  title: string
-  description: string
-  robots: string
-  siteName: string
-  ogImageUrl: string
-  ogUrl: string
-  twitterSite: string
-  twitterCreator: string
-}
-
-const NUXT_ENV_OUTPUT_ENV = readEnvType(process.env)
-const runtimeConfig = getRuntimeConfigOfEnvType(
-  NUXT_ENV_OUTPUT_ENV,
-  process.env,
-)
-const cssUrls = [`@/assets/styles/style.scss`]
-const srcDir = 'app'
-const isSsr = false
-const checkTypeCheckOnBuild = true
-const needAnalyze = NUXT_ENV_OUTPUT_ENV === 'local'
-const needSourcemap = NUXT_ENV_OUTPUT_ENV !== 'production'
-const enableDebug = NUXT_ENV_OUTPUT_ENV === 'local'
-
-const meta: MetaInfo = {
-  title: '',
-  description: '',
-  robots: NUXT_ENV_OUTPUT_ENV === 'production' ? 'all' : 'none',
-  siteName: '',
-  ogImageUrl: `${runtimeConfig.public.url}/images/ogp.jpg`,
-  ogUrl: runtimeConfig.public.url,
-  twitterSite: 'https://x.com/',
-  twitterCreator: 'https://x.com/',
-}
-
-// https://nuxt.com/docs/api/configuration/nuxt-config
-export default defineNuxtConfig({
-  extends: path.resolve(__dirname, '../base'),
-  modules: [
-    '@nuxtjs/google-fonts',
-  ],
-  ssr: isSsr,
-
-  imports: {
-    dirs: ['utils/types/**'],
-    global: false,
-  },
-
-  app: {
-    head: {
-      meta: [
-        { name: 'robots', content: meta.robots },
-        {
-          name: 'description',
-          content: meta.description,
-        },
-        {
-          property: 'og:site_name',
-          content: meta.siteName,
-        },
-        {
-          property: 'og:url',
-          content: meta.ogUrl,
-        },
-        {
-          property: 'og:title',
-          content: meta.title,
-        },
-        {
-          property: 'og:description',
-          content: meta.description,
-        },
-        {
-          property: 'og:image',
-          content: meta.ogImageUrl,
-        },
-        {
-          name: 'twitter:site',
-          content: meta.twitterSite,
-        },
-        {
-          name: 'twitter:creator',
-          content: meta.twitterCreator,
-        },
-      ],
-      link: [
-        {
-          rel: 'icon',
-          type: 'image/x-icon',
-          href: `${runtimeConfig.public.url}/favicon.ico`,
-        },
-      ],
-    },
-  },
-
-  css: cssUrls,
-  runtimeConfig,
-  dir: {
-    public: path.resolve(__dirname, './public'),
-  },
-  rootDir: __dirname,
-  srcDir: `${srcDir}/`,
-
-  alias: {
-    '#base': path.resolve(__dirname, '../base'),
-    '#main': __dirname,
-    '@': path.resolve(__dirname, './app'),
-  },
-
-  ignore: [
-    '.output',
-    '**/test/*.{js,ts,jsx,tsx}',
-    '**/*.{spec,test}.{js,ts,jsx,tsx}',
-    '**/-*.*',
-  ],
-
-  build: {
-    analyze: needAnalyze,
-  },
-
-  sourcemap: {
-    server: needSourcemap,
-    client: needSourcemap,
-  },
-
-  compatibilityDate: '2024-04-03',
-
-  typescript: {
-    typeCheck: checkTypeCheckOnBuild,
-  },
-
-  debug: process.env.VITEST === 'true' ? false : enableDebug,
-
-  googleFonts: {
-    families: {
-      'Noto+Sans+JP': [100, 300, 400, 500, 700, 900],
-    },
-    display: 'swap',
-  },
-
-  i18n: nuxtI18nOptions,
-})
-````
-
-## File: layers/main/.nuxtrc
-````
-setups.@nuxt/test-utils="4.0.3"
 ````
 
 ## File: layers/main/eslint.config.mjs
@@ -3110,6 +3344,11 @@ if (!global.HTMLDialogElement) {
 }
 ````
 
+## File: layers/main/.nuxtrc
+````
+setups.@nuxt/test-utils="4.2.0"
+````
+
 ## File: layers/main/vitest.config.mts
 ````typescript
 import { defineVitestConfig } from '@nuxt/test-utils/config'
@@ -3123,11 +3362,13 @@ export default defineVitestConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      reportsDirectory: '../coverage',
+      reportsDirectory: './coverage',
       reportOnFailure: true,
-      allowExternal: true,
+      allowExternal: false,
       include: ['**/*.{vue,ts}'],
       exclude: [
+        '**/.nuxt/**',
+        '**/coverage/**',
         'plugins/**',
         'middleware/**',
         'layouts/**',
@@ -3136,12 +3377,12 @@ export default defineVitestConfig({
     },
     setupFiles: ['app/test/setup.ts'],
     alias: {
-      '#base': path.resolve(__dirname, '../base'),
+      '#base': path.resolve(import.meta.dirname, '../base'),
     },
   },
   resolve: {
     alias: {
-      '#base': path.resolve(__dirname, '../base'),
+      '#base': path.resolve(import.meta.dirname, '../base'),
     },
   },
 })

@@ -10,14 +10,11 @@ For more information about the AGENTS.md format and best practices, visit: https
 Nuxt4-based monorepo boilerplate using Layer Architecture, developed by HIKKY Ltd. for building scalable VR/metaverse-related web applications.
 
 ### Understanding Project Structure
-Before starting development, AI agents should read `./repomix-output.md` to understand the complete project structure and codebase. This file contains:
-- Complete directory structure
-- All source code files and their contents
-- Configuration files and their relationships
-- Testing patterns and examples
-- Component implementations and naming conventions
-
-Use this file to understand existing patterns before creating new components or modifying existing code.
+Treat the checked-out source files as the source of truth. Start with focused searches such as
+`rg` and inspect only the files relevant to the task. When broader context is useful, consult the
+generated files under [`agent_contexts/`](./agent_contexts/README.md), selecting the smallest
+matching context. Generated context can be stale, so verify every relevant detail against the
+current source before making changes.
 
 ## Dev Environment Tips
 
