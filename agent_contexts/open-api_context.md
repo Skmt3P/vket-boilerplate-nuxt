@@ -598,13 +598,13 @@ export const {{toCamelCase operationId}} = async (
     "allclean-install": "bun run ../../scripts/clean_install.js all"
   },
   "dependencies": {
-    "zod": "^4.4.3"
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "openapi-zod-client": "^1.18.3",
-    "js-yaml": "^5.3.0",
+    "js-yaml": "^5.4.1",
     "@types/js-yaml": "^4.0.9",
-    "@types/node": "^26.2.0"
+    "@types/node": "^26.4.0"
   }
 }
 ```
