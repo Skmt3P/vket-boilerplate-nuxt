@@ -7361,6 +7361,18 @@ test('optional content is omitted by default', () => {
   expect(wrapper.find('.hm-popup-wrapper').exists()).toBe(false)
 })
 
+test('confirm button can be rendered without a cancel button', () => {
+  const wrapper = mount(HmPopup, {
+    props: {
+      confirmText: 'confirm',
+    },
+  })
+
+  expect(wrapper.find('.hm-popup-wrapper').exists()).toBe(true)
+  expect(wrapper.findAll('.hm-popup-button')).toHaveLength(1)
+  expect(wrapper.text()).toContain('confirm')
+})
+
 describe('emits', () => {
   test('@close', async () => {
     const wrapper = mount(HmPopup, {
