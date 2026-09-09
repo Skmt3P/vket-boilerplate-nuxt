@@ -954,7 +954,7 @@ declare module '*.svg?inline'
 
 ## File: layers/main/app/assets/styles/_reset.scss
 ````scss
-@forward 'ress';
+@forward 'ress/ress.css';
 
 ol,
 ul {
