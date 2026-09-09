@@ -812,6 +812,7 @@ import '@total-typescript/ts-reset'
 
 ## File: layers/base/nuxt.config.ts
 ````typescript
+import { createResolver } from '@nuxt/kit'
 import { defineNuxtConfig } from 'nuxt/config'
 import { FileSystemIconLoader } from 'unplugin-icons/loaders'
 import IconsResolver from 'unplugin-icons/resolver'
@@ -822,7 +823,8 @@ import { readEnvType } from './config/models/EnvType'
 import { getRuntimeConfigOfEnvType } from './config/runtimeConfig'
 import { nuxtI18nOptions } from './i18n/i18n.config'
 
-const cssUrls = [`./app/assets/styles/style.scss`]
+const { resolve } = createResolver(import.meta.url)
+const cssUrls = [resolve('./app/assets/styles/style.scss')]
 const srcDir = 'app'
 
 type NuxtConfigInput = Parameters<typeof defineNuxtConfig>[0]
