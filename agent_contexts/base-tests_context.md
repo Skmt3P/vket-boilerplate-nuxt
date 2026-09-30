@@ -1635,6 +1635,36 @@ describe('runtimeConfig', () => {
 })
 ````
 
+## File: layers/base/app/test/e2e/sample.spec.ts
+````typescript
+import { test, expect } from '@playwright/test'
+
+test.describe('Top Page', () => {
+  test('should display top page successfully', async ({ page }) => {
+    // トップページにアクセス
+    const response = await page.goto('/')
+
+    // ページが正常にロードされることを確認
+    await expect(page).toHaveTitle(/.*/)
+
+    // ページのステータスが200であることを確認（正常にレスポンスが返ってくる）
+    expect(response?.status()).toBe(200)
+  })
+
+  test('should have accessible content', async ({ page }) => {
+    await page.goto('/')
+
+    // ページのbody要素が存在することを確認
+    const body = page.locator('body')
+    await expect(body).toBeVisible()
+
+    // HTMLドキュメントが適切にレンダリングされていることを確認
+    const htmlContent = await page.content()
+    expect(htmlContent).toContain('<!DOCTYPE html>')
+  })
+})
+````
+
 ## File: layers/base/app/test/i18n/i18n-config.spec.ts
 ````typescript
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -4297,36 +4327,6 @@ test.prop([fc.nat(), fc.string()])('fails to validate max', (n, s) => {
   fc.pre(n < s.length)
   const rules = useValidationRules()
   expect(() => rules.max(n).parse(s)).toThrowError()
-})
-````
-
-## File: layers/base/app/test/e2e/sample.spec.ts
-````typescript
-import { test, expect } from '@playwright/test'
-
-test.describe('Top Page', () => {
-  test('should display top page successfully', async ({ page }) => {
-    // トップページにアクセス
-    const response = await page.goto('/')
-
-    // ページが正常にロードされることを確認
-    await expect(page).toHaveTitle(/.*/)
-
-    // ページのステータスが200であることを確認（正常にレスポンスが返ってくる）
-    expect(response?.status()).toBe(200)
-  })
-
-  test('should have accessible content', async ({ page }) => {
-    await page.goto('/')
-
-    // ページのbody要素が存在することを確認
-    const body = page.locator('body')
-    await expect(body).toBeVisible()
-
-    // HTMLドキュメントが適切にレンダリングされていることを確認
-    const htmlContent = await page.content()
-    expect(htmlContent).toContain('<!DOCTYPE html>')
-  })
 })
 ````
 
