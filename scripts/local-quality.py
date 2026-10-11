@@ -49,6 +49,12 @@ def verify(path):
     actual = [(check["layer"], check["name"]) for check in record["checks"]]
     if actual != expected:
         raise ValueError("Evidence does not cover the required checks")
+    for check in record["checks"]:
+        if digest(Path(check["log"])) != check["log_sha256"]:
+            raise ValueError("A check log changed")
+        artifact = check.get("artifact")
+        if artifact and digest(Path(artifact["path"])) != artifact["sha256"]:
+            raise ValueError("A coverage artifact changed")
     print(f"Valid local quality evidence for {record['identity']['commit']}")
 
 
@@ -79,6 +85,13 @@ def run(output):
                 "log": str(log),
                 "log_sha256": digest(log),
             })
+            if name == "test:coverage" and result.returncode == 0:
+                artifact = ROOT / "layers" / layer / "coverage" / "coverage-final.json"
+                if not artifact.is_file():
+                    result.returncode = 1
+                    record["checks"][-1]["exit_code"] = 1
+                else:
+                    record["checks"][-1]["artifact"] = {"path": str(artifact), "sha256": digest(artifact)}
             evidence.write_text(json.dumps(record, indent=2) + "\n")
             if result.returncode:
                 print(f"Failed: {log}", file=sys.stderr)

@@ -636,6 +636,17 @@ describe('HmSlider', () => {
       expect(wrapper.vm.currentSlide).toBe(-1)
     })
 
+    it('autoplayのinterval callbackでsliderが消えた場合は停止する', async () => {
+      const wrapper = mountSlider({ autoplay: true })
+      await Promise.resolve()
+      const callback = vi.mocked(window.setInterval).mock.calls.at(-1)?.[0]
+      wrapper.vm.$.setupState.slider = null
+
+      expect(callback).toBeTypeOf('function')
+      if (typeof callback === 'function') callback()
+      expect(window.clearInterval).toHaveBeenCalled()
+    })
+
     it('自動再生の英語aria-labelを表示する', () => {
       const enI18n = createI18n({
         legacy: false,

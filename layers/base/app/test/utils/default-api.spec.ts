@@ -190,13 +190,21 @@ describe('api', () => {
 
     const absent: ResponseContext = { response: {} }
     const primitive: ResponseContext = { response: { _data: 'value' } }
+    const blob = new Blob(['binary'])
+    const binary: ResponseContext = { response: { _data: blob } }
+    const buffer = new ArrayBuffer(4)
+    const arrayBuffer: ResponseContext = { response: { _data: buffer } }
     const object: ResponseContext = { response: { _data: { snake_case: 1, nested_value: { inner_key: 2 } } } }
     await onResponse(absent)
     await onResponse(primitive)
+    await onResponse(binary)
+    await onResponse(arrayBuffer)
     await onResponse(object)
 
     expect(absent.response._data).toBeUndefined()
     expect(primitive.response._data).toBe('value')
+    expect(binary.response._data).toBe(blob)
+    expect(arrayBuffer.response._data).toBe(buffer)
     expect(object.response._data).toEqual({ snakeCase: 1, nestedValue: { innerKey: 2 } })
   })
 })
