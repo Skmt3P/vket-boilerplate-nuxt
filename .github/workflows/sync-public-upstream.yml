@@ -33,5 +33,22 @@ jobs:
             exit 0
           fi
 
-          git merge --no-edit public-upstream/develop
+          # Resolve deletion/modify conflicts for the fork's removed quality
+          # workflows only. Any other conflict still needs manual review.
+          if ! git merge --no-edit public-upstream/develop; then
+            git rm -f --ignore-unmatch -- \
+              .github/workflows/{base,derived-main,main,showcases}-{check,coverage,reviewdog}.yml
+            if [ -n "$(git ls-files -u)" ]; then
+              echo 'Unrelated upstream merge conflicts need manual review.' >&2
+              exit 1
+            fi
+            git commit --no-edit
+          fi
+          # The public upstream still runs paid quality workflows. Keep them
+          # out of this fork after every sync, including newly merged copies.
+          git rm -f --ignore-unmatch -- \
+            .github/workflows/{base,derived-main,main,showcases}-{check,coverage,reviewdog}.yml
+          if ! git diff --cached --quiet; then
+            git commit -m 'Keep quality checks local after upstream sync'
+          fi
           git push origin HEAD:develop
