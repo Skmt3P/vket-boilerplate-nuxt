@@ -5,8 +5,10 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -53,6 +55,8 @@ def verify(path):
         if digest(Path(check["log"])) != check["log_sha256"]:
             raise ValueError("A check log changed")
         artifact = check.get("artifact")
+        if check["name"] == "test:coverage" and (not artifact or check.get("test_count", 0) < 1):
+            raise ValueError("A coverage suite did not run fresh tests")
         if artifact and digest(Path(artifact["path"])) != artifact["sha256"]:
             raise ValueError("A coverage artifact changed")
     print(f"Valid local quality evidence for {record['identity']['commit']}")
@@ -72,7 +76,12 @@ def run(output):
     evidence = output / f"{record['identity']['commit']}.json"
     for layer in LAYERS:
         for name in ("lint", "typecheck", "test:coverage"):
-            command = ["bun", "run", name]
+            coverage_dir = None
+            if name == "test:coverage":
+                coverage_dir = Path(tempfile.mkdtemp(prefix=f"{layer}-coverage-", dir=output))
+                command = ["bunx", "vitest", "run", "--dir", "./app/test", "--coverage", "--coverage.reportsDirectory", str(coverage_dir)]
+            else:
+                command = ["bun", "run", name]
             log = output / f"{record['identity']['commit']}-{layer}-{name.replace(':', '-')}.log"
             print(f"{layer}: {' '.join(command)}", flush=True)
             with log.open("wb") as stream:
@@ -86,11 +95,13 @@ def run(output):
                 "log_sha256": digest(log),
             })
             if name == "test:coverage" and result.returncode == 0:
-                artifact = ROOT / "layers" / layer / "coverage" / "coverage-final.json"
-                if not artifact.is_file():
+                artifact = coverage_dir / "coverage-final.json"
+                counts = re.search(r"Tests\s+(\d+)\s+passed", log.read_text(errors="replace"))
+                if not artifact.is_file() or not counts or int(counts.group(1)) < 1:
                     result.returncode = 1
                     record["checks"][-1]["exit_code"] = 1
                 else:
+                    record["checks"][-1]["test_count"] = int(counts.group(1))
                     record["checks"][-1]["artifact"] = {"path": str(artifact), "sha256": digest(artifact)}
             evidence.write_text(json.dumps(record, indent=2) + "\n")
             if result.returncode:
