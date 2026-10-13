@@ -220,3 +220,7 @@ cross-env VITE_OUTPUT_ENV=local bun dev
 - [Zod Documentation](https://zod.dev)
 - [RSCSS Naming Convention](https://rscss.io)
 - [Vue 3 Composition API](https://vuejs.org/api/composition-api.html)
+
+## AI quality gate routing
+
+Follow [AI_QUALITY_GATES.md](./AI_QUALITY_GATES.md) before every AI push or GitHub edit.

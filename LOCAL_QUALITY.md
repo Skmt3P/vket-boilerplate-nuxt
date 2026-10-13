@@ -1,8 +1,6 @@
 # Local quality checks
 
-Quality checks run on the checked-out commit, on a developer machine. GitHub
-Actions no longer runs lint, type checking, unit tests, coverage, or reviewdog
-for this fork. The upstream sync workflow preserves that choice.
+For marked AI work, quality checks run on the checked-out commit on a developer machine. Unmarked human work runs the GitHub Actions quality jobs. The upstream sync workflow preserves the routing conditions.
 
 1. Install the Bun version specified by `packageManager` and dependencies with
    `bun install --frozen-lockfile` at the repository root.
