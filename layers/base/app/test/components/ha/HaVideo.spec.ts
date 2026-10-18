@@ -24,7 +24,14 @@ describe('HaVideo', () => {
 
     expect(wrapper.find('video').exists()).toBe(true)
     expect(wrapper.getCurrentComponent()).toBeTruthy()
+    expect(wrapper.get('video').element.hasAttribute('playsinline')).toBe(false)
     expect(wrapper.html()).toMatchSnapshot()
+  })
+
+  test('adds playsinline only when enabled', () => {
+    const wrapper = mount(HaVideo, { props: { src: '', playsinline: true } })
+
+    expect(wrapper.get('video').element.hasAttribute('playsinline')).toBe(true)
   })
 
   test('renders video with default props', () => {
