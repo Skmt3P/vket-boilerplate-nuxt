@@ -4608,187 +4608,6 @@ test('error display', async () => {
 })
 ```
 
-## File: layers/base/app/test/components/ha/HaVideo.spec.ts
-```typescript
-import { mount } from '@vue/test-utils'
-import { describe, expect, test, vi } from 'vitest'
-import HaVideo from '#base/app/components/ha/HaVideo.vue'
-
-describe('HaVideo', () => {
-  test('ref component', () => {
-    expect(HaVideo).toBeTruthy()
-  })
-
-  test('mount component', () => {
-    const wrapper = mount(HaVideo, {
-      props: {
-        src: '',
-        height: '',
-        width: '',
-        play: false,
-        autoplay: true,
-        controls: true,
-        muted: true,
-        playsinline: false,
-        preload: '',
-      },
-    })
-
-    expect(wrapper.find('video').exists()).toBe(true)
-    expect(wrapper.getCurrentComponent()).toBeTruthy()
-    expect(wrapper.html()).toMatchSnapshot()
-  })
-
-  test('renders video with default props', () => {
-    const wrapper = mount(HaVideo, {
-      props: {
-        src: 'test.mp4',
-        height: '400px',
-        width: '600px',
-        play: false,
-        autoplay: false,
-        autopictureinpicture: false,
-        controls: true,
-        disablepictureinpicture: false,
-        disableremoteplayback: true,
-        loop: false,
-        muted: false,
-        playsinline: false,
-        poster: 'poster.jpg',
-        controlslist: 'nofullscreen',
-        crossorigin: 'anonymous',
-        preload: 'auto',
-      },
-    })
-
-    const videoElement = wrapper.find('video').element
-    expect(videoElement).toBeTruthy()
-    expect(videoElement.src).toContain('test.mp4')
-    expect(wrapper.props('height')).toBe('400px')
-    expect(wrapper.props('width')).toBe('600px')
-    expect(wrapper.props('play')).toBe(false)
-    expect(videoElement.autoplay).toBe(false)
-    expect(wrapper.props('autopictureinpicture')).toBe(false)
-    expect(videoElement.controls).toBe(true)
-    expect(wrapper.props('disablepictureinpicture')).toBe(false)
-    expect(wrapper.props('disableremoteplayback')).toBe(true)
-    expect(wrapper.get('video').attributes('x-webkit-airplay')).toBe('deny')
-    expect(videoElement.loop).toBe(false)
-    expect(videoElement.muted).toBe(false)
-    expect(wrapper.props('playsinline')).toBe(false)
-    expect(wrapper.get('video').attributes('poster')).toContain('poster.jpg')
-    expect(wrapper.get('video').attributes('controlslist')).toContain('nofullscreen')
-    expect(wrapper.props('crossorigin')).toBe('anonymous')
-    expect(wrapper.props('preload')).toBe('auto')
-  })
-
-  test('emit', async () => {
-    const wrapper = mount(HaVideo, {
-      props: {
-        src: '',
-        height: '',
-        width: '',
-        play: false,
-        autoplay: true,
-        controls: true,
-        muted: true,
-        playsinline: false,
-        preload: '',
-      },
-    })
-
-    const videoElement = wrapper.find('video')
-
-    // Trigger video events
-    await videoElement.trigger('progress')
-    await videoElement.trigger('suspend')
-    await videoElement.trigger('durationchange')
-    await videoElement.trigger('loadedmetadata')
-    await videoElement.trigger('loadeddata')
-    await videoElement.trigger('canplay')
-    await videoElement.trigger('playing')
-    await videoElement.trigger('pause')
-    await videoElement.trigger('ended')
-    await videoElement.trigger('seeking')
-    await videoElement.trigger('timeupdate')
-    await videoElement.trigger('volumechange')
-    await videoElement.trigger('ratechange')
-    await videoElement.trigger('waiting')
-
-    // Assuming your component emits custom event
-    expect(wrapper.emitted().progress).toBeTruthy()
-    expect(wrapper.emitted().suspend).toBeTruthy()
-    expect(wrapper.emitted().durationchange).toBeTruthy()
-    expect(wrapper.emitted().loadedmetadata).toBeTruthy()
-    expect(wrapper.emitted().loadeddata).toBeTruthy()
-    expect(wrapper.emitted().canplay).toBeTruthy()
-    expect(wrapper.emitted().playing).toBeTruthy()
-    expect(wrapper.emitted().pause).toBeTruthy()
-    expect(wrapper.emitted().ended).toBeTruthy()
-    expect(wrapper.emitted().seeking).toBeTruthy()
-    expect(wrapper.emitted().timeupdate).toBeTruthy()
-    expect(wrapper.emitted().volumechange).toBeTruthy()
-    expect(wrapper.emitted().ratechange).toBeTruthy()
-    expect(wrapper.emitted().waiting).toBeTruthy()
-    // check the number of times each event was emitted
-    expect(wrapper.emitted().progress).toHaveLength(1)
-    expect(wrapper.emitted().suspend).toHaveLength(1)
-    expect(wrapper.emitted().durationchange).toHaveLength(1)
-    expect(wrapper.emitted().loadedmetadata).toHaveLength(1)
-    expect(wrapper.emitted().loadeddata).toHaveLength(1)
-    expect(wrapper.emitted().canplay).toHaveLength(1)
-    expect(wrapper.emitted().playing).toHaveLength(1)
-    expect(wrapper.emitted().pause).toHaveLength(1)
-    expect(wrapper.emitted().ended).toHaveLength(1)
-    expect(wrapper.emitted().seeking).toHaveLength(1)
-    expect(wrapper.emitted().timeupdate).toHaveLength(1)
-    expect(wrapper.emitted().volumechange).toHaveLength(1)
-    expect(wrapper.emitted().ratechange).toHaveLength(1)
-    expect(wrapper.emitted().waiting).toHaveLength(1)
-  })
-
-  test('watches for changes in play prop and plays or pauses the video accordingly', async () => {
-    // Mock play and pause method before running the tests
-    HTMLMediaElement.prototype.play = vi.fn()
-    HTMLMediaElement.prototype.pause = vi.fn()
-
-    const wrapper = mount(HaVideo, {
-      props: {
-        src: '',
-        height: '',
-        width: '',
-        play: false,
-        autoplay: true,
-        controls: true,
-        muted: true,
-        playsinline: false,
-        preload: '',
-      },
-    })
-
-    await wrapper.setProps({ play: true })
-    // Check if the play method was called
-    expect(HTMLMediaElement.prototype.play).toHaveBeenCalled()
-
-    await wrapper.setProps({ play: false })
-    // Check if the pause method was called
-    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled()
-  })
-
-  test('ignores play changes after the video ref is cleared', async () => {
-    const wrapper = mount(HaVideo, { props: { src: '', play: false } })
-    const vm = wrapper.vm as unknown as {
-      haVideoRef: HTMLVideoElement | null
-    }
-    vm.haVideoRef = null
-
-    await wrapper.setProps({ play: true })
-
-    expect(vm.haVideoRef).not.toBeNull()
-  })
-})
-```
-
 ## File: layers/base/app/test/components/hm/button/HmButton.spec.ts
 ```typescript
 import { mount } from '@vue/test-utils'
@@ -7329,6 +7148,194 @@ describe('HmPaging', () => {
 })
 ```
 
+## File: layers/base/app/test/components/ha/HaVideo.spec.ts
+```typescript
+import { mount } from '@vue/test-utils'
+import { describe, expect, test, vi } from 'vitest'
+import HaVideo from '#base/app/components/ha/HaVideo.vue'
+
+describe('HaVideo', () => {
+  test('ref component', () => {
+    expect(HaVideo).toBeTruthy()
+  })
+
+  test('mount component', () => {
+    const wrapper = mount(HaVideo, {
+      props: {
+        src: '',
+        height: '',
+        width: '',
+        play: false,
+        autoplay: true,
+        controls: true,
+        muted: true,
+        playsinline: false,
+        preload: '',
+      },
+    })
+
+    expect(wrapper.find('video').exists()).toBe(true)
+    expect(wrapper.getCurrentComponent()).toBeTruthy()
+    expect(wrapper.get('video').element.hasAttribute('playsinline')).toBe(false)
+    expect(wrapper.html()).toMatchSnapshot()
+  })
+
+  test('adds playsinline only when enabled', () => {
+    const wrapper = mount(HaVideo, { props: { src: '', playsinline: true } })
+
+    expect(wrapper.get('video').element.hasAttribute('playsinline')).toBe(true)
+  })
+
+  test('renders video with default props', () => {
+    const wrapper = mount(HaVideo, {
+      props: {
+        src: 'test.mp4',
+        height: '400px',
+        width: '600px',
+        play: false,
+        autoplay: false,
+        autopictureinpicture: false,
+        controls: true,
+        disablepictureinpicture: false,
+        disableremoteplayback: true,
+        loop: false,
+        muted: false,
+        playsinline: false,
+        poster: 'poster.jpg',
+        controlslist: 'nofullscreen',
+        crossorigin: 'anonymous',
+        preload: 'auto',
+      },
+    })
+
+    const videoElement = wrapper.find('video').element
+    expect(videoElement).toBeTruthy()
+    expect(videoElement.src).toContain('test.mp4')
+    expect(wrapper.props('height')).toBe('400px')
+    expect(wrapper.props('width')).toBe('600px')
+    expect(wrapper.props('play')).toBe(false)
+    expect(videoElement.autoplay).toBe(false)
+    expect(wrapper.props('autopictureinpicture')).toBe(false)
+    expect(videoElement.controls).toBe(true)
+    expect(wrapper.props('disablepictureinpicture')).toBe(false)
+    expect(wrapper.props('disableremoteplayback')).toBe(true)
+    expect(wrapper.get('video').attributes('x-webkit-airplay')).toBe('deny')
+    expect(videoElement.loop).toBe(false)
+    expect(videoElement.muted).toBe(false)
+    expect(wrapper.props('playsinline')).toBe(false)
+    expect(wrapper.get('video').attributes('poster')).toContain('poster.jpg')
+    expect(wrapper.get('video').attributes('controlslist')).toContain('nofullscreen')
+    expect(wrapper.props('crossorigin')).toBe('anonymous')
+    expect(wrapper.props('preload')).toBe('auto')
+  })
+
+  test('emit', async () => {
+    const wrapper = mount(HaVideo, {
+      props: {
+        src: '',
+        height: '',
+        width: '',
+        play: false,
+        autoplay: true,
+        controls: true,
+        muted: true,
+        playsinline: false,
+        preload: '',
+      },
+    })
+
+    const videoElement = wrapper.find('video')
+
+    // Trigger video events
+    await videoElement.trigger('progress')
+    await videoElement.trigger('suspend')
+    await videoElement.trigger('durationchange')
+    await videoElement.trigger('loadedmetadata')
+    await videoElement.trigger('loadeddata')
+    await videoElement.trigger('canplay')
+    await videoElement.trigger('playing')
+    await videoElement.trigger('pause')
+    await videoElement.trigger('ended')
+    await videoElement.trigger('seeking')
+    await videoElement.trigger('timeupdate')
+    await videoElement.trigger('volumechange')
+    await videoElement.trigger('ratechange')
+    await videoElement.trigger('waiting')
+
+    // Assuming your component emits custom event
+    expect(wrapper.emitted().progress).toBeTruthy()
+    expect(wrapper.emitted().suspend).toBeTruthy()
+    expect(wrapper.emitted().durationchange).toBeTruthy()
+    expect(wrapper.emitted().loadedmetadata).toBeTruthy()
+    expect(wrapper.emitted().loadeddata).toBeTruthy()
+    expect(wrapper.emitted().canplay).toBeTruthy()
+    expect(wrapper.emitted().playing).toBeTruthy()
+    expect(wrapper.emitted().pause).toBeTruthy()
+    expect(wrapper.emitted().ended).toBeTruthy()
+    expect(wrapper.emitted().seeking).toBeTruthy()
+    expect(wrapper.emitted().timeupdate).toBeTruthy()
+    expect(wrapper.emitted().volumechange).toBeTruthy()
+    expect(wrapper.emitted().ratechange).toBeTruthy()
+    expect(wrapper.emitted().waiting).toBeTruthy()
+    // check the number of times each event was emitted
+    expect(wrapper.emitted().progress).toHaveLength(1)
+    expect(wrapper.emitted().suspend).toHaveLength(1)
+    expect(wrapper.emitted().durationchange).toHaveLength(1)
+    expect(wrapper.emitted().loadedmetadata).toHaveLength(1)
+    expect(wrapper.emitted().loadeddata).toHaveLength(1)
+    expect(wrapper.emitted().canplay).toHaveLength(1)
+    expect(wrapper.emitted().playing).toHaveLength(1)
+    expect(wrapper.emitted().pause).toHaveLength(1)
+    expect(wrapper.emitted().ended).toHaveLength(1)
+    expect(wrapper.emitted().seeking).toHaveLength(1)
+    expect(wrapper.emitted().timeupdate).toHaveLength(1)
+    expect(wrapper.emitted().volumechange).toHaveLength(1)
+    expect(wrapper.emitted().ratechange).toHaveLength(1)
+    expect(wrapper.emitted().waiting).toHaveLength(1)
+  })
+
+  test('watches for changes in play prop and plays or pauses the video accordingly', async () => {
+    // Mock play and pause method before running the tests
+    HTMLMediaElement.prototype.play = vi.fn()
+    HTMLMediaElement.prototype.pause = vi.fn()
+
+    const wrapper = mount(HaVideo, {
+      props: {
+        src: '',
+        height: '',
+        width: '',
+        play: false,
+        autoplay: true,
+        controls: true,
+        muted: true,
+        playsinline: false,
+        preload: '',
+      },
+    })
+
+    await wrapper.setProps({ play: true })
+    // Check if the play method was called
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalled()
+
+    await wrapper.setProps({ play: false })
+    // Check if the pause method was called
+    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled()
+  })
+
+  test('ignores play changes after the video ref is cleared', async () => {
+    const wrapper = mount(HaVideo, { props: { src: '', play: false } })
+    const vm = wrapper.vm as unknown as {
+      haVideoRef: HTMLVideoElement | null
+    }
+    vm.haVideoRef = null
+
+    await wrapper.setProps({ play: true })
+
+    expect(vm.haVideoRef).not.toBeNull()
+  })
+})
+```
+
 ## File: layers/base/app/test/components/hm/input/HmInputText.spec.ts
 ```typescript
 import { mount } from '@vue/test-utils'
@@ -7905,6 +7912,347 @@ describe('emits', () => {
         ?? raiseError('confirmButton is not found')
     await confirmButton.trigger('click')
     expect(wrapper.emitted()).toHaveProperty('confirm')
+  })
+})
+```
+
+## File: layers/base/app/test/components/hm/HmSocialShareLink.spec.ts
+```typescript
+import { mount } from '@vue/test-utils'
+import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest'
+import HmSocialShareLink from '#base/app/components/hm/HmSocialShareLink.vue'
+
+const { mockGetShareUrl } = vi.hoisted(() => ({
+  mockGetShareUrl: vi.fn((name: string) => `mockedUrlFor${name}`),
+}))
+
+vi.mock('#base/app/composables/useSocialShareLink', () => ({
+  default: () => ({
+    getShareUrl: mockGetShareUrl,
+  }),
+}))
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
+describe('HmSocialShareLink', () => {
+  it('computes the correct share URL', () => {
+    mockGetShareUrl.mockImplementation((name: string) => `mockedUrlFor${name}`)
+
+    const wrapper = mount(HmSocialShareLink, {
+      props: {
+        name: 'twitter',
+        text: 'testText',
+        twitterHashtags: ['test'],
+        shareUrl: 'testShareUrl',
+      },
+      // nuxt-linkはwarnとなるので、下記でaタグに置き換える。RouterLinkStubはprops:['to']が使えず引き継げなくなるので使わない。
+      global: {
+        stubs: {
+          'nuxt-link': {
+            template: '<a><slot /></a>',
+          },
+        },
+      },
+    })
+    const link = wrapper.find('.ha-link')
+    // 現在は useSocialShareLink の戻り値をそのまま使う
+    expect(link.attributes('to')).toBe('mockedUrlFortwitter')
+  })
+
+  it('uses an empty target for null name', () => {
+    mount(HmSocialShareLink, {
+      props: { name: null },
+      global: {
+        stubs: {
+          'nuxt-link': { template: '<a><slot /></a>' },
+        },
+      },
+    })
+
+    expect(mockGetShareUrl).toHaveBeenCalledWith('', expect.objectContaining({
+      name: null,
+    }))
+  })
+})
+```
+
+## File: layers/base/app/test/components/ha/HaLink.spec.ts
+```typescript
+import { mount } from '@vue/test-utils'
+import { beforeEach, afterEach, describe, it, expect, test, vi } from 'vitest'
+import HaLink from '#base/app/components/ha/HaLink.vue'
+
+import { isNuxtEnvironment } from '#base/app/utils/environment'
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
+test('ref component', () => {
+  expect(HaLink).toBeTruthy()
+})
+
+test('mount component', () => {
+  const wrapper = mount(HaLink, {
+    props: {
+      to: 'https://example.com',
+    },
+  })
+  expect(wrapper.getCurrentComponent()).toBeTruthy()
+  expect(wrapper.html()).toMatchSnapshot()
+})
+
+// nuxt-linkはwarnとなるので、aタグに置き換えて to 属性を読む
+const mountInternal = (props: InstanceType<typeof HaLink>['$props']) =>
+  mount(HaLink, {
+    props,
+    global: {
+      stubs: {
+        'nuxt-link': {
+          template: '<a><slot /></a>',
+        },
+      },
+    },
+  })
+    .find('a')
+    .attributes('to')
+
+describe(':to', () => {
+  // 外部サイトリンクのテスト
+  it('set external path', () => {
+    const wrapper = mount(HaLink, {
+      props: { to: 'https://example.com' },
+    })
+    expect(wrapper.find('a').attributes('href')).toBe('https://example.com')
+  })
+
+  // 内部リンクテスト (aタグ)
+  it('set internal path', () => {
+    const wrapper = mount(HaLink, {
+      props: { to: '/internal-path' },
+      // nuxt-linkはwarnとなるので、下記でaタグに置き換える。RouterLinkStubはtoを引き継げなくなるので使わない。
+      global: {
+        stubs: {
+          'nuxt-link': {
+            template: '<a><slot /></a>',
+          },
+        },
+      },
+    })
+    // 現在は useLocalePath をモックせず入力値がそのまま使われる
+    expect(wrapper.find('a').attributes('to')).toBe('/internal-path')
+  })
+
+  // to に埋め込まれた query / hash が落ちないこと
+  it('keeps query embedded in internal path', () => {
+    expect(mountInternal({ to: '/internal-path?id=123' })).toBe(
+      '/internal-path?id=123',
+    )
+  })
+
+  it('keeps hash embedded in internal path', () => {
+    expect(mountInternal({ to: '/internal-path#about' })).toBe(
+      '/internal-path#about',
+    )
+  })
+
+  it('keeps query and hash embedded in internal path', () => {
+    expect(mountInternal({ to: '/internal-path?id=123#about' })).toBe(
+      '/internal-path?id=123#about',
+    )
+  })
+
+  it('keeps query and hash embedded in external path', () => {
+    const wrapper = mount(HaLink, {
+      props: { to: 'https://example.com/?id=123#about' },
+    })
+    expect(wrapper.find('a').attributes('href')).toBe(
+      'https://example.com/?id=123#about',
+    )
+  })
+})
+
+describe(':blank', () => {
+  it('not set', () => {
+    const wrapper = mount(HaLink, {
+      props: { to: '' },
+      global: {
+        stubs: {
+          'nuxt-link': {
+            template: '<a><slot /></a>',
+          },
+        },
+      },
+    })
+    expect(wrapper.find('a').attributes('target')).toBeFalsy()
+  })
+
+  it('set true', () => {
+    const wrapper = mount(HaLink, {
+      props: { to: 'https://example.com', blank: true },
+    })
+    expect(wrapper.find('a').attributes('target')).toBe('_blank')
+  })
+
+  // <HaLink blank> って書けてほしい
+  it('set `blank` with no value set target="_blank"', () => {
+    const wrapper = mount(
+      {
+        template: '<HaLink to="https://example.com" blank></HaLink>',
+        components: { HaLink },
+      },
+      {},
+    )
+    expect(wrapper.get('a').attributes('target')).toBe('_blank')
+  })
+})
+
+describe(':rel', () => {
+  it('set rel', () => {
+    const wrapper = mount(HaLink, {
+      props: {
+        to: 'https://example.com',
+        rel: 'noreferrer',
+      },
+    })
+    expect(wrapper.get('a').attributes('rel')).toBe('noreferrer')
+  })
+})
+
+describe(':forceAnchorLink', () => {
+  it('set true', () => {
+    const wrapper = mount(HaLink, {
+      props: { to: '/internal', forceAnchorLink: true },
+    })
+    expect(wrapper.find('a').exists()).toBe(true)
+  })
+
+  it('アンカーリンクにqueryとhashを連結する', () => {
+    const wrapper = mount(HaLink, {
+      props: {
+        to: '/search',
+        forceAnchorLink: true,
+        query: { keyword: 'virtual market', page: '2' },
+        hash: '#results',
+      },
+    })
+
+    expect(wrapper.get('a').attributes('href')).toBe(
+      '/search?keyword=virtual+market&page=2#results',
+    )
+  })
+})
+
+describe('slot', () => {
+  it('set simple text', () => {
+    const wrapper = mount(HaLink, {
+      props: {
+        to: 'https://example.com',
+      },
+      slots: {
+        default: 'link label',
+      },
+    })
+    // slot入れたらリンク消えたりしない？
+    expect(wrapper.html()).toContain('https://example.com')
+    // slotの中身はきちんと描画されてる？
+    expect(wrapper.text()).toContain('link label')
+  })
+})
+
+// 以下、NuxtLink系のテスト
+vi.mock('#base/app/utils/environment')
+
+describe(':query', () => {
+  it('appends query parameters to internal links', () => {
+    expect(mountInternal({ to: '/internal', query: { id: '123' } })).toBe(
+      '/internal?id=123',
+    )
+  })
+
+  // to 側と prop 側の両方を指定しても「?」が二重に付かないこと
+  it('merges with query embedded in to', () => {
+    expect(
+      mountInternal({ to: '/internal?page=2', query: { id: '123' } }),
+    ).toBe('/internal?page=2&id=123')
+  })
+
+  it('prefers prop over the same key embedded in to', () => {
+    expect(mountInternal({ to: '/internal?id=1', query: { id: '123' } })).toBe(
+      '/internal?id=123',
+    )
+  })
+
+  it('keeps hash embedded in to', () => {
+    expect(
+      mountInternal({ to: '/internal#about', query: { id: '123' } }),
+    ).toBe('/internal?id=123#about')
+  })
+})
+
+describe(':hash', () => {
+  it('appends hash parameters to internal links', () => {
+    expect(mountInternal({ to: '/internal', hash: '#hash' })).toBe(
+      '/internal#hash',
+    )
+  })
+
+  // to 側と prop 側の両方を指定しても「#」が二重に付かないこと
+  it('prefers prop over the hash embedded in to', () => {
+    expect(mountInternal({ to: '/internal#about', hash: '#hash' })).toBe(
+      '/internal#hash',
+    )
+  })
+
+  it('keeps query embedded in to', () => {
+    expect(mountInternal({ to: '/internal?id=123', hash: '#hash' })).toBe(
+      '/internal?id=123#hash',
+    )
+  })
+})
+
+describe('<nuxt-link>', () => {
+  /*
+   * TODO : テスト自体は通るが[Vue warn]: Failed to resolve component: nuxt-link のWARNが出るのでコメントアウト
+   * it('use router-link', async () => {
+   *   vi.mocked(isNuxtEnvironment).mockReturnValueOnce(true)
+   *   const wrapper = mount(HaLink, {
+   *     props: {
+   *       to: '/link',
+   *     },
+   *   })
+   *   const nuxtLink = wrapper.find('nuxt-link')
+   *   expect(nuxtLink.exists()).toBe(true)
+   * })
+   */
+  it('external link must be <a>', () => {
+    vi.mocked(isNuxtEnvironment).mockReturnValueOnce(true)
+    const wrapper = mount(HaLink, {
+      props: {
+        to: 'https://example.com',
+      },
+    })
+    expect(wrapper.find('a').exists()).toBeTruthy()
+  })
+  it('force <a> link', () => {
+    vi.mocked(isNuxtEnvironment).mockReturnValueOnce(true)
+    const wrapper = mount(HaLink, {
+      props: {
+        to: '/link',
+        forceAnchorLink: true,
+      },
+    })
+    expect(wrapper.find('a').exists()).toBeTruthy()
   })
 })
 ```
@@ -8549,6 +8897,17 @@ describe('HmSlider', () => {
       expect(wrapper.vm.currentSlide).toBe(-1)
     })
 
+    it('autoplayのinterval callbackでsliderが消えた場合は停止する', async () => {
+      const wrapper = mountSlider({ autoplay: true })
+      await Promise.resolve()
+      const callback = vi.mocked(window.setInterval).mock.calls.at(-1)?.[0]
+      wrapper.vm.$.setupState.slider = null
+
+      expect(callback).toBeTypeOf('function')
+      if (typeof callback === 'function') callback()
+      expect(window.clearInterval).toHaveBeenCalled()
+    })
+
     it('自動再生の英語aria-labelを表示する', () => {
       const enI18n = createI18n({
         legacy: false,
@@ -8718,347 +9077,6 @@ describe('HmSlider', () => {
       await expect(wrapper.vm.$.setupState.endDragging(mouse('mouseup', 80)))
         .rejects.toThrow('slider要素はnull')
     })
-  })
-})
-```
-
-## File: layers/base/app/test/components/hm/HmSocialShareLink.spec.ts
-```typescript
-import { mount } from '@vue/test-utils'
-import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest'
-import HmSocialShareLink from '#base/app/components/hm/HmSocialShareLink.vue'
-
-const { mockGetShareUrl } = vi.hoisted(() => ({
-  mockGetShareUrl: vi.fn((name: string) => `mockedUrlFor${name}`),
-}))
-
-vi.mock('#base/app/composables/useSocialShareLink', () => ({
-  default: () => ({
-    getShareUrl: mockGetShareUrl,
-  }),
-}))
-
-beforeEach(() => {
-  vi.clearAllMocks()
-})
-
-afterEach(() => {
-  vi.restoreAllMocks()
-})
-
-describe('HmSocialShareLink', () => {
-  it('computes the correct share URL', () => {
-    mockGetShareUrl.mockImplementation((name: string) => `mockedUrlFor${name}`)
-
-    const wrapper = mount(HmSocialShareLink, {
-      props: {
-        name: 'twitter',
-        text: 'testText',
-        twitterHashtags: ['test'],
-        shareUrl: 'testShareUrl',
-      },
-      // nuxt-linkはwarnとなるので、下記でaタグに置き換える。RouterLinkStubはprops:['to']が使えず引き継げなくなるので使わない。
-      global: {
-        stubs: {
-          'nuxt-link': {
-            template: '<a><slot /></a>',
-          },
-        },
-      },
-    })
-    const link = wrapper.find('.ha-link')
-    // 現在は useSocialShareLink の戻り値をそのまま使う
-    expect(link.attributes('to')).toBe('mockedUrlFortwitter')
-  })
-
-  it('uses an empty target for null name', () => {
-    mount(HmSocialShareLink, {
-      props: { name: null },
-      global: {
-        stubs: {
-          'nuxt-link': { template: '<a><slot /></a>' },
-        },
-      },
-    })
-
-    expect(mockGetShareUrl).toHaveBeenCalledWith('', expect.objectContaining({
-      name: null,
-    }))
-  })
-})
-```
-
-## File: layers/base/app/test/components/ha/HaLink.spec.ts
-```typescript
-import { mount } from '@vue/test-utils'
-import { beforeEach, afterEach, describe, it, expect, test, vi } from 'vitest'
-import HaLink from '#base/app/components/ha/HaLink.vue'
-
-import { isNuxtEnvironment } from '#base/app/utils/environment'
-
-beforeEach(() => {
-  vi.clearAllMocks()
-})
-
-afterEach(() => {
-  vi.restoreAllMocks()
-})
-
-test('ref component', () => {
-  expect(HaLink).toBeTruthy()
-})
-
-test('mount component', () => {
-  const wrapper = mount(HaLink, {
-    props: {
-      to: 'https://example.com',
-    },
-  })
-  expect(wrapper.getCurrentComponent()).toBeTruthy()
-  expect(wrapper.html()).toMatchSnapshot()
-})
-
-// nuxt-linkはwarnとなるので、aタグに置き換えて to 属性を読む
-const mountInternal = (props: InstanceType<typeof HaLink>['$props']) =>
-  mount(HaLink, {
-    props,
-    global: {
-      stubs: {
-        'nuxt-link': {
-          template: '<a><slot /></a>',
-        },
-      },
-    },
-  })
-    .find('a')
-    .attributes('to')
-
-describe(':to', () => {
-  // 外部サイトリンクのテスト
-  it('set external path', () => {
-    const wrapper = mount(HaLink, {
-      props: { to: 'https://example.com' },
-    })
-    expect(wrapper.find('a').attributes('href')).toBe('https://example.com')
-  })
-
-  // 内部リンクテスト (aタグ)
-  it('set internal path', () => {
-    const wrapper = mount(HaLink, {
-      props: { to: '/internal-path' },
-      // nuxt-linkはwarnとなるので、下記でaタグに置き換える。RouterLinkStubはtoを引き継げなくなるので使わない。
-      global: {
-        stubs: {
-          'nuxt-link': {
-            template: '<a><slot /></a>',
-          },
-        },
-      },
-    })
-    // 現在は useLocalePath をモックせず入力値がそのまま使われる
-    expect(wrapper.find('a').attributes('to')).toBe('/internal-path')
-  })
-
-  // to に埋め込まれた query / hash が落ちないこと
-  it('keeps query embedded in internal path', () => {
-    expect(mountInternal({ to: '/internal-path?id=123' })).toBe(
-      '/internal-path?id=123',
-    )
-  })
-
-  it('keeps hash embedded in internal path', () => {
-    expect(mountInternal({ to: '/internal-path#about' })).toBe(
-      '/internal-path#about',
-    )
-  })
-
-  it('keeps query and hash embedded in internal path', () => {
-    expect(mountInternal({ to: '/internal-path?id=123#about' })).toBe(
-      '/internal-path?id=123#about',
-    )
-  })
-
-  it('keeps query and hash embedded in external path', () => {
-    const wrapper = mount(HaLink, {
-      props: { to: 'https://example.com/?id=123#about' },
-    })
-    expect(wrapper.find('a').attributes('href')).toBe(
-      'https://example.com/?id=123#about',
-    )
-  })
-})
-
-describe(':blank', () => {
-  it('not set', () => {
-    const wrapper = mount(HaLink, {
-      props: { to: '' },
-      global: {
-        stubs: {
-          'nuxt-link': {
-            template: '<a><slot /></a>',
-          },
-        },
-      },
-    })
-    expect(wrapper.find('a').attributes('target')).toBeFalsy()
-  })
-
-  it('set true', () => {
-    const wrapper = mount(HaLink, {
-      props: { to: 'https://example.com', blank: true },
-    })
-    expect(wrapper.find('a').attributes('target')).toBe('_blank')
-  })
-
-  // <HaLink blank> って書けてほしい
-  it('set `blank` with no value set target="_blank"', () => {
-    const wrapper = mount(
-      {
-        template: '<HaLink to="https://example.com" blank></HaLink>',
-        components: { HaLink },
-      },
-      {},
-    )
-    expect(wrapper.get('a').attributes('target')).toBe('_blank')
-  })
-})
-
-describe(':rel', () => {
-  it('set rel', () => {
-    const wrapper = mount(HaLink, {
-      props: {
-        to: 'https://example.com',
-        rel: 'noreferrer',
-      },
-    })
-    expect(wrapper.get('a').attributes('rel')).toBe('noreferrer')
-  })
-})
-
-describe(':forceAnchorLink', () => {
-  it('set true', () => {
-    const wrapper = mount(HaLink, {
-      props: { to: '/internal', forceAnchorLink: true },
-    })
-    expect(wrapper.find('a').exists()).toBe(true)
-  })
-
-  it('アンカーリンクにqueryとhashを連結する', () => {
-    const wrapper = mount(HaLink, {
-      props: {
-        to: '/search',
-        forceAnchorLink: true,
-        query: { keyword: 'virtual market', page: '2' },
-        hash: '#results',
-      },
-    })
-
-    expect(wrapper.get('a').attributes('href')).toBe(
-      '/search?keyword=virtual+market&page=2#results',
-    )
-  })
-})
-
-describe('slot', () => {
-  it('set simple text', () => {
-    const wrapper = mount(HaLink, {
-      props: {
-        to: 'https://example.com',
-      },
-      slots: {
-        default: 'link label',
-      },
-    })
-    // slot入れたらリンク消えたりしない？
-    expect(wrapper.html()).toContain('https://example.com')
-    // slotの中身はきちんと描画されてる？
-    expect(wrapper.text()).toContain('link label')
-  })
-})
-
-// 以下、NuxtLink系のテスト
-vi.mock('#base/app/utils/environment')
-
-describe(':query', () => {
-  it('appends query parameters to internal links', () => {
-    expect(mountInternal({ to: '/internal', query: { id: '123' } })).toBe(
-      '/internal?id=123',
-    )
-  })
-
-  // to 側と prop 側の両方を指定しても「?」が二重に付かないこと
-  it('merges with query embedded in to', () => {
-    expect(
-      mountInternal({ to: '/internal?page=2', query: { id: '123' } }),
-    ).toBe('/internal?page=2&id=123')
-  })
-
-  it('prefers prop over the same key embedded in to', () => {
-    expect(mountInternal({ to: '/internal?id=1', query: { id: '123' } })).toBe(
-      '/internal?id=123',
-    )
-  })
-
-  it('keeps hash embedded in to', () => {
-    expect(
-      mountInternal({ to: '/internal#about', query: { id: '123' } }),
-    ).toBe('/internal?id=123#about')
-  })
-})
-
-describe(':hash', () => {
-  it('appends hash parameters to internal links', () => {
-    expect(mountInternal({ to: '/internal', hash: '#hash' })).toBe(
-      '/internal#hash',
-    )
-  })
-
-  // to 側と prop 側の両方を指定しても「#」が二重に付かないこと
-  it('prefers prop over the hash embedded in to', () => {
-    expect(mountInternal({ to: '/internal#about', hash: '#hash' })).toBe(
-      '/internal#hash',
-    )
-  })
-
-  it('keeps query embedded in to', () => {
-    expect(mountInternal({ to: '/internal?id=123', hash: '#hash' })).toBe(
-      '/internal?id=123#hash',
-    )
-  })
-})
-
-describe('<nuxt-link>', () => {
-  /*
-   * TODO : テスト自体は通るが[Vue warn]: Failed to resolve component: nuxt-link のWARNが出るのでコメントアウト
-   * it('use router-link', async () => {
-   *   vi.mocked(isNuxtEnvironment).mockReturnValueOnce(true)
-   *   const wrapper = mount(HaLink, {
-   *     props: {
-   *       to: '/link',
-   *     },
-   *   })
-   *   const nuxtLink = wrapper.find('nuxt-link')
-   *   expect(nuxtLink.exists()).toBe(true)
-   * })
-   */
-  it('external link must be <a>', () => {
-    vi.mocked(isNuxtEnvironment).mockReturnValueOnce(true)
-    const wrapper = mount(HaLink, {
-      props: {
-        to: 'https://example.com',
-      },
-    })
-    expect(wrapper.find('a').exists()).toBeTruthy()
-  })
-  it('force <a> link', () => {
-    vi.mocked(isNuxtEnvironment).mockReturnValueOnce(true)
-    const wrapper = mount(HaLink, {
-      props: {
-        to: '/link',
-        forceAnchorLink: true,
-      },
-    })
-    expect(wrapper.find('a').exists()).toBeTruthy()
   })
 })
 ```
