@@ -27,6 +27,7 @@
     "layers/*"
   ],
   "overrides": {
+    "@nuxt/test-utils": "4.2.0",
     "vite": "8.2.2"
   },
   "scripts": {
