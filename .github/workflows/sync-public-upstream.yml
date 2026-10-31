@@ -38,8 +38,31 @@ jobs:
           if ! git merge --no-edit public-upstream/develop; then
             git rm -f --ignore-unmatch -- \
               .github/workflows/{base,derived-main,main,showcases}-{check,coverage,reviewdog}.yml
+            # Preserve fork-specific versions for the known conflicting files.
+            # Upstream changes to other files remain part of the merge.
+            fork_conflicts=(
+              .github/dependabot.yml
+              agent_contexts/base-components_context.md
+              agent_contexts/base-logic_context.md
+              agent_contexts/base-tests-components_context.md
+              agent_contexts/base-tests_context.md
+              layers/base/app/test/components/hm/HmPopup.spec.ts
+              layers/base/app/test/components/hm/HmSlider.spec.ts
+              layers/base/app/test/utils/default-api.spec.ts
+            )
+            for path in "${fork_conflicts[@]}"; do
+              if git ls-files -u -- "$path" | grep -q .; then
+                if git cat-file -e "HEAD:$path" 2>/dev/null; then
+                  git checkout --ours -- "$path"
+                  git add -- "$path"
+                else
+                  git rm -f --ignore-unmatch -- "$path"
+                fi
+              fi
+            done
             if [ -n "$(git ls-files -u)" ]; then
-              echo 'Unrelated upstream merge conflicts need manual review.' >&2
+              echo 'New upstream merge conflicts need manual review.' >&2
+              git ls-files -u >&2
               exit 1
             fi
             git commit --no-edit
