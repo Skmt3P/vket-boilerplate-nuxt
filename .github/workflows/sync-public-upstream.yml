@@ -35,7 +35,7 @@ jobs:
 
           # Resolve deletion/modify conflicts for the fork's removed quality
           # workflows only. Any other conflict still needs manual review.
-          if ! git merge --no-edit public-upstream/develop; then
+          if ! git merge --no-commit --no-ff public-upstream/develop; then
             git rm -f --ignore-unmatch -- \
               .github/workflows/{base,derived-main,main,showcases}-{check,coverage,reviewdog}.yml
             # Keep fork configuration and added tests only for reviewed upstream
@@ -78,8 +78,21 @@ jobs:
               git ls-files -u >&2
               exit 1
             fi
-            git commit --no-edit
           fi
+          # GITHUB_TOKEN cannot push changes to workflow files. Keep the
+          # already reviewed workflow revision and stop on new upstream edits.
+          upstream_workflow_blob=$(git rev-parse public-upstream/develop:.github/workflows/auto-branch-on-issue.yml)
+          if [ "$upstream_workflow_blob" != 36cb9465f4bac4b2997ca9887b12543f66d0e0aa ]; then
+            echo "Unreviewed upstream workflow change: $upstream_workflow_blob" >&2
+            exit 1
+          fi
+          git restore --source=HEAD --staged --worktree -- .github/workflows/auto-branch-on-issue.yml
+          if [ -n "$(git diff HEAD --name-only -- .github/workflows)" ]; then
+            echo 'Upstream workflow changes need manual review.' >&2
+            git diff HEAD --name-only -- .github/workflows >&2
+            exit 1
+          fi
+          git commit --no-edit
           # The public upstream still runs paid quality workflows. Keep them
           # out of this fork after every sync, including newly merged copies.
           git rm -f --ignore-unmatch -- \
