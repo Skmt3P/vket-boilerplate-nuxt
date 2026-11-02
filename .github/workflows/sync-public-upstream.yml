@@ -38,8 +38,44 @@ jobs:
           if ! git merge --no-edit public-upstream/develop; then
             git rm -f --ignore-unmatch -- \
               .github/workflows/{base,derived-main,main,showcases}-{check,coverage,reviewdog}.yml
+            # Keep fork configuration and added tests only for reviewed upstream
+            # revisions. Generated contexts are rebuilt from merged source below.
+            declare -A reviewed_upstream_blobs=(
+              [.github/dependabot.yml]=4d5e631856383638e9bb926ca68f8fca25fb68e7
+              [layers/base/app/test/components/hm/HmPopup.spec.ts]=2f3c7a9a06618038b2a7d9d102256c743bcc7003
+              [layers/base/app/test/components/hm/HmSlider.spec.ts]=dcc868cacd42c308d66c98a9871052a66b9b4567
+              [layers/base/app/test/utils/default-api.spec.ts]=050b22eb681a26db73fcc562edc9356e86ef6363
+            )
+            fork_conflicts=(
+              .github/dependabot.yml
+              agent_contexts/base-components_context.md
+              agent_contexts/base-logic_context.md
+              agent_contexts/base-tests-components_context.md
+              agent_contexts/base-tests_context.md
+              layers/base/app/test/components/hm/HmPopup.spec.ts
+              layers/base/app/test/components/hm/HmSlider.spec.ts
+              layers/base/app/test/utils/default-api.spec.ts
+            )
+            for path in "${fork_conflicts[@]}"; do
+              if git ls-files -u -- "$path" | grep -q .; then
+                if [ -n "${reviewed_upstream_blobs[$path]:-}" ]; then
+                  upstream_blob=$(git rev-parse "public-upstream/develop:$path")
+                  if [ "$upstream_blob" != "${reviewed_upstream_blobs[$path]}" ]; then
+                    echo "Unreviewed upstream change: $path ($upstream_blob)" >&2
+                    exit 1
+                  fi
+                fi
+                if git cat-file -e "HEAD:$path" 2>/dev/null; then
+                  git checkout --ours -- "$path"
+                  git add -- "$path"
+                else
+                  git rm -f --ignore-unmatch -- "$path"
+                fi
+              fi
+            done
             if [ -n "$(git ls-files -u)" ]; then
-              echo 'Unrelated upstream merge conflicts need manual review.' >&2
+              echo 'New upstream merge conflicts need manual review.' >&2
+              git ls-files -u >&2
               exit 1
             fi
             git commit --no-edit
@@ -50,5 +86,20 @@ jobs:
             .github/workflows/{base,derived-main,main,showcases}-{check,coverage,reviewdog}.yml
           if ! git diff --cached --quiet; then
             git commit -m 'Keep quality checks local after upstream sync'
+          fi
+          # Context files are derived data. Rebuild the four conflicting files
+          # from the final merged source so neither side's source is omitted.
+          source scripts/repomix_config.sh
+          for name in base-components base-logic base-tests-components base-tests; do
+            args=(--include="${AGENTS[$name]}" --output="agent_contexts/${name}_context.md" --style=markdown)
+            if [ -n "${IGNORES[$name]:-}" ]; then
+              args+=(--ignore="${IGNORES[$name]}")
+            fi
+            npx --yes repomix@1.14.1 "${args[@]}"
+          done
+          git add -- agent_contexts/base-components_context.md agent_contexts/base-logic_context.md \
+            agent_contexts/base-tests-components_context.md agent_contexts/base-tests_context.md
+          if ! git diff --cached --quiet; then
+            git commit -m 'Regenerate base agent contexts after upstream sync'
           fi
           git push origin HEAD:develop
