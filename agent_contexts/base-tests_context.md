@@ -1348,6 +1348,63 @@ export default {
 }
 ````
 
+## File: layers/base/app/test/composables/useDefaultApi.spec.ts
+````typescript
+// NOTE: そもそももっといいテストあれば是非
+import { test, expect, vi } from 'vitest'
+import { UseFetchOptions } from 'nuxt/app'
+import { FetchOptions } from 'ofetch'
+import useDefaultApi, { defaultFetcher } from '#base/app/composables/useDefaultApi'
+
+vi.mock('nuxt/app', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('nuxt/app')>()
+  return {
+    ...actual,
+    // NOTE: 本テストにおいて実際にAPI叩くわけではなく、useFetchをすげ替えたいのでダミーとなるmock作成
+    useFetch: vi.fn((path: string, options: UseFetchOptions<FetchOptions>) => {
+      return { path, options }
+    }),
+  }
+})
+
+test('useDefaultApi', () => {
+  // NOTE: useDefaultApiで使用できるRepositoryKeyを入れた際にオブジェクトが返ってくること。この場合useDefaultApi('hoge')など存在しない場合はテストが落ちる
+  const useApiExample = useDefaultApi('example').repository.value
+  const expectObj = { get: {} }
+  expect(useApiExample).toMatchObject(expectObj)
+})
+
+test('defaultFetcher', () => {
+  const path = '/example'
+  const options = {}
+  // useFetchが発火することを確認。戻り値はmockの戻り値とする
+  expect(defaultFetcher(path, options)).toStrictEqual({ path, options })
+})
+````
+
+## File: layers/base/app/test/utils/default-factory.spec.ts
+````typescript
+import { describe, it, expect } from 'vitest'
+import exampleRepository from '#base/app/repositories/exampleRepository'
+import {
+  defaultRepositories,
+  defaultRepositoryFactory,
+} from '#base/app/utils/default-factory'
+
+describe('defaultRepositoryFactory', () => {
+  it('should return the correct repository when a valid key is provided', () => {
+    const repository = defaultRepositoryFactory.get('example')
+    expect(repository).toBe(exampleRepository)
+  })
+})
+
+describe('defaultRepositories', () => {
+  it('should contain the example repository', () => {
+    expect(defaultRepositories.example).toBe(exampleRepository)
+  })
+})
+````
+
 ## File: layers/base/app/test/composables/node-with-element-environment.ts
 ````typescript
 import type { Environment } from 'vitest/environments'
@@ -1522,40 +1579,6 @@ describe('doObserve', () => {
 
     expect(element.classList.contains('-intersecting')).toBe(false)
   })
-})
-````
-
-## File: layers/base/app/test/composables/useDefaultApi.spec.ts
-````typescript
-// NOTE: そもそももっといいテストあれば是非
-import { test, expect, vi } from 'vitest'
-import { UseFetchOptions } from 'nuxt/app'
-import { FetchOptions } from 'ofetch'
-import useDefaultApi, { defaultFetcher } from '#base/app/composables/useDefaultApi'
-
-vi.mock('nuxt/app', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('nuxt/app')>()
-  return {
-    ...actual,
-    // NOTE: 本テストにおいて実際にAPI叩くわけではなく、useFetchをすげ替えたいのでダミーとなるmock作成
-    useFetch: vi.fn((path: string, options: UseFetchOptions<FetchOptions>) => {
-      return { path, options }
-    }),
-  }
-})
-
-test('useDefaultApi', () => {
-  // NOTE: useDefaultApiで使用できるRepositoryKeyを入れた際にオブジェクトが返ってくること。この場合useDefaultApi('hoge')など存在しない場合はテストが落ちる
-  const useApiExample = useDefaultApi('example').repository.value
-  const expectObj = { get: {} }
-  expect(useApiExample).toMatchObject(expectObj)
-})
-
-test('defaultFetcher', () => {
-  const path = '/example'
-  const options = {}
-  // useFetchが発火することを確認。戻り値はmockの戻り値とする
-  expect(defaultFetcher(path, options)).toStrictEqual({ path, options })
 })
 ````
 
@@ -2748,29 +2771,6 @@ describe('date-control.ts', () => {
       const result = formatCustom(testDate, 'YYYY年MM月DD日')
       expect(result).toBe('2024年01月15日')
     })
-  })
-})
-````
-
-## File: layers/base/app/test/utils/default-factory.spec.ts
-````typescript
-import { describe, it, expect } from 'vitest'
-import exampleRepository from '#base/app/repositories/exampleRepository'
-import {
-  defaultRepositories,
-  defaultRepositoryFactory,
-} from '#base/app/utils/default-factory'
-
-describe('defaultRepositoryFactory', () => {
-  it('should return the correct repository when a valid key is provided', () => {
-    const repository = defaultRepositoryFactory.get('example')
-    expect(repository).toBe(exampleRepository)
-  })
-})
-
-describe('defaultRepositories', () => {
-  it('should contain the example repository', () => {
-    expect(defaultRepositories.example).toBe(exampleRepository)
   })
 })
 ````
@@ -4643,6 +4643,209 @@ describe('image.ts', () => {
 })
 ````
 
+## File: layers/base/app/test/setup.ts
+````typescript
+import { vi } from 'vitest'
+
+// Type declarations for global mocks - range and useSlots are handled by auto-imports
+
+function createStorageMock() {
+  const store = new Map<string, string>()
+
+  return {
+    get length() {
+      return store.size
+    },
+    clear: vi.fn(() => {
+      store.clear()
+    }),
+    getItem: vi.fn((key: string) => store.get(key) ?? null),
+    key: vi.fn((index: number) => Array.from(store.keys())[index] ?? null),
+    removeItem: vi.fn((key: string) => {
+      store.delete(key)
+    }),
+    setItem: vi.fn((key: string, value: string) => {
+      store.set(key, value)
+    }),
+  }
+}
+
+Object.defineProperty(globalThis, 'localStorage', {
+  configurable: true,
+  value: createStorageMock(),
+})
+
+Object.defineProperty(globalThis, 'sessionStorage', {
+  configurable: true,
+  value: createStorageMock(),
+})
+
+// Global mock for all icon imports
+vi.mock('~icons/ri/close-line', () => ({
+  default: {
+    name: 'RiCloseLine',
+    template: '<svg class="icon"><path /></svg>',
+    props: ['class'],
+  },
+}))
+
+// Mock Nuxt composables using vi.mock to avoid conflicts with auto-imports
+vi.mock('#app/composables/useI18n', () => ({
+  useI18n: vi.fn(() => ({
+    t: vi.fn((key: string) => {
+      const messages: Record<string, string> = {
+        next: 'Next',
+        prev: 'Prev',
+      }
+      return messages[key] || key
+    }),
+    locale: { value: 'ja' },
+  })),
+}))
+
+// Basic Nuxt app mocks used by plugins and middleware
+vi.mock('nuxt/app', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('nuxt/app')>()
+  return {
+    ...actual,
+    defineNuxtPlugin: (plugin: unknown) => plugin,
+    defineNuxtRouteMiddleware:
+      actual.defineNuxtRouteMiddleware ?? ((fn: unknown) => fn),
+    useNuxtApp: actual.useNuxtApp ?? (() => ({ $i18n: { locale: 'ja' } })),
+  }
+})
+
+vi.mock('#app', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#app')>()
+  return {
+    ...actual,
+    defineNuxtPlugin: (plugin: unknown) => plugin,
+    defineNuxtRouteMiddleware:
+      actual.defineNuxtRouteMiddleware ?? ((fn: unknown) => fn),
+    useNuxtApp: actual.useNuxtApp ?? (() => ({ $i18n: { locale: 'ja' } })),
+  }
+})
+
+vi.mock('#app/composables/useRoute', () => ({
+  useRoute: vi.fn(() => ({
+    path: '/test',
+    query: { page: '1' },
+  })),
+}))
+
+vi.mock('#app/composables/useLocalePath', () => ({
+  useLocalePath: vi.fn(() => (path: string) => path),
+}))
+
+// Nuxt 4 component auto-imports resolve via #imports.
+vi.mock('#imports', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#imports')>()
+  return {
+    ...actual,
+    useLocalePath: vi.fn(() => (location: string | { path?: string }) =>
+      typeof location === 'string' ? location : (location?.path ?? ''),
+    ),
+    useLocaleRoute: vi.fn(() => (location: unknown) => location),
+    useSwitchLocalePath: vi.fn(() => () => ''),
+    useRouteBaseName: vi.fn(() => () => ''),
+    useLocaleHead: vi.fn(() => ({})),
+  }
+})
+
+vi.mock('../../../node_modules/@nuxtjs/i18n/dist/runtime/composables/index', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
+  return {
+    ...actual,
+    useLocalePath: vi.fn(() => (location: string | { path?: string }) =>
+      typeof location === 'string' ? location : (location?.path ?? ''),
+    ),
+    useLocaleRoute: vi.fn(() => (location: unknown) => location),
+    useSwitchLocalePath: vi.fn(() => () => ''),
+    useRouteBaseName: vi.fn(() => () => ''),
+    useLocaleHead: vi.fn(() => ({})),
+  }
+})
+vi.mock('../../../node_modules/@nuxtjs/i18n/dist/runtime/composables/index.js', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
+  return {
+    ...actual,
+    useLocalePath: vi.fn(() => (location: string | { path?: string }) =>
+      typeof location === 'string' ? location : (location?.path ?? ''),
+    ),
+    useLocaleRoute: vi.fn(() => (location: unknown) => location),
+    useSwitchLocalePath: vi.fn(() => () => ''),
+    useRouteBaseName: vi.fn(() => () => ''),
+    useLocaleHead: vi.fn(() => ({})),
+  }
+})
+
+// Avoid plugin initialization noise in unit tests (plugins themselves are not under test here).
+vi.mock('../../../node_modules/@nuxtjs/i18n/dist/runtime/plugins/i18n.js', () => ({
+  default: () => {},
+}))
+vi.mock('../../../node_modules/@nuxtjs/i18n/dist/runtime/plugins/route-locale-detect.js', () => ({
+  default: () => {},
+}))
+vi.mock('../../../node_modules/@nuxtjs/i18n/dist/runtime/plugins/switch-locale-path-ssr.js', () => ({
+  default: () => {},
+}))
+vi.mock('../../../node_modules/@nuxtjs/i18n/dist/runtime/plugins/preload.js', () => ({
+  default: () => {},
+}))
+vi.mock('../../../node_modules/@nuxtjs/device/dist/runtime/plugin.js', () => ({
+  default: () => {},
+}))
+vi.mock('../../../node_modules/nuxt-site-config/dist/runtime/app/plugins/i18n.js', () => ({
+  default: () => {},
+}))
+vi.mock('@gtm-support/vue-gtm', () => ({
+  createGtm: vi.fn(() => ({
+    install: vi.fn(),
+  })),
+}))
+
+vi.mock('vue', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('vue')>()
+  return {
+    ...actual,
+    nextTick: vi.fn().mockResolvedValue(undefined),
+  }
+})
+
+// Global utility functions for tests - range and useSlots handled by auto-imports
+
+// HTMLDialogElement mock for jsdom
+if (!global.HTMLDialogElement) {
+  global.HTMLDialogElement = class HTMLDialogElement extends HTMLElement {
+    closedBy = ''
+    open = false
+    returnValue = ''
+
+    showModal = vi.fn(() => {
+      this.open = true
+    })
+
+    close = vi.fn(() => {
+      this.open = false
+    })
+
+    show = vi.fn(() => {
+      this.open = true
+    })
+
+    requestClose = vi.fn()
+
+    override addEventListener(_event: string, _callback: (...args: unknown[]) => void) {
+      // Mock implementation
+    }
+
+    override removeEventListener(_event: string, _callback: (...args: unknown[]) => void) {
+      // Mock implementation
+    }
+  }
+}
+````
+
 ## File: layers/base/app/test/utils/default-api.spec.ts
 ````typescript
 import { describe, it, expect, vi } from 'vitest'
@@ -4855,207 +5058,4 @@ describe('api', () => {
     expect(object.response._data).toEqual({ snakeCase: 1, nestedValue: { innerKey: 2 } })
   })
 })
-````
-
-## File: layers/base/app/test/setup.ts
-````typescript
-import { vi } from 'vitest'
-
-// Type declarations for global mocks - range and useSlots are handled by auto-imports
-
-function createStorageMock() {
-  const store = new Map<string, string>()
-
-  return {
-    get length() {
-      return store.size
-    },
-    clear: vi.fn(() => {
-      store.clear()
-    }),
-    getItem: vi.fn((key: string) => store.get(key) ?? null),
-    key: vi.fn((index: number) => Array.from(store.keys())[index] ?? null),
-    removeItem: vi.fn((key: string) => {
-      store.delete(key)
-    }),
-    setItem: vi.fn((key: string, value: string) => {
-      store.set(key, value)
-    }),
-  }
-}
-
-Object.defineProperty(globalThis, 'localStorage', {
-  configurable: true,
-  value: createStorageMock(),
-})
-
-Object.defineProperty(globalThis, 'sessionStorage', {
-  configurable: true,
-  value: createStorageMock(),
-})
-
-// Global mock for all icon imports
-vi.mock('~icons/ri/close-line', () => ({
-  default: {
-    name: 'RiCloseLine',
-    template: '<svg class="icon"><path /></svg>',
-    props: ['class'],
-  },
-}))
-
-// Mock Nuxt composables using vi.mock to avoid conflicts with auto-imports
-vi.mock('#app/composables/useI18n', () => ({
-  useI18n: vi.fn(() => ({
-    t: vi.fn((key: string) => {
-      const messages: Record<string, string> = {
-        next: 'Next',
-        prev: 'Prev',
-      }
-      return messages[key] || key
-    }),
-    locale: { value: 'ja' },
-  })),
-}))
-
-// Basic Nuxt app mocks used by plugins and middleware
-vi.mock('nuxt/app', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('nuxt/app')>()
-  return {
-    ...actual,
-    defineNuxtPlugin: (plugin: unknown) => plugin,
-    defineNuxtRouteMiddleware:
-      actual.defineNuxtRouteMiddleware ?? ((fn: unknown) => fn),
-    useNuxtApp: actual.useNuxtApp ?? (() => ({ $i18n: { locale: 'ja' } })),
-  }
-})
-
-vi.mock('#app', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('#app')>()
-  return {
-    ...actual,
-    defineNuxtPlugin: (plugin: unknown) => plugin,
-    defineNuxtRouteMiddleware:
-      actual.defineNuxtRouteMiddleware ?? ((fn: unknown) => fn),
-    useNuxtApp: actual.useNuxtApp ?? (() => ({ $i18n: { locale: 'ja' } })),
-  }
-})
-
-vi.mock('#app/composables/useRoute', () => ({
-  useRoute: vi.fn(() => ({
-    path: '/test',
-    query: { page: '1' },
-  })),
-}))
-
-vi.mock('#app/composables/useLocalePath', () => ({
-  useLocalePath: vi.fn(() => (path: string) => path),
-}))
-
-// Nuxt 4 component auto-imports resolve via #imports.
-vi.mock('#imports', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('#imports')>()
-  return {
-    ...actual,
-    useLocalePath: vi.fn(() => (location: string | { path?: string }) =>
-      typeof location === 'string' ? location : (location?.path ?? ''),
-    ),
-    useLocaleRoute: vi.fn(() => (location: unknown) => location),
-    useSwitchLocalePath: vi.fn(() => () => ''),
-    useRouteBaseName: vi.fn(() => () => ''),
-    useLocaleHead: vi.fn(() => ({})),
-  }
-})
-
-vi.mock('../../../node_modules/@nuxtjs/i18n/dist/runtime/composables/index', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>()
-  return {
-    ...actual,
-    useLocalePath: vi.fn(() => (location: string | { path?: string }) =>
-      typeof location === 'string' ? location : (location?.path ?? ''),
-    ),
-    useLocaleRoute: vi.fn(() => (location: unknown) => location),
-    useSwitchLocalePath: vi.fn(() => () => ''),
-    useRouteBaseName: vi.fn(() => () => ''),
-    useLocaleHead: vi.fn(() => ({})),
-  }
-})
-vi.mock('../../../node_modules/@nuxtjs/i18n/dist/runtime/composables/index.js', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>()
-  return {
-    ...actual,
-    useLocalePath: vi.fn(() => (location: string | { path?: string }) =>
-      typeof location === 'string' ? location : (location?.path ?? ''),
-    ),
-    useLocaleRoute: vi.fn(() => (location: unknown) => location),
-    useSwitchLocalePath: vi.fn(() => () => ''),
-    useRouteBaseName: vi.fn(() => () => ''),
-    useLocaleHead: vi.fn(() => ({})),
-  }
-})
-
-// Avoid plugin initialization noise in unit tests (plugins themselves are not under test here).
-vi.mock('../../../node_modules/@nuxtjs/i18n/dist/runtime/plugins/i18n.js', () => ({
-  default: () => {},
-}))
-vi.mock('../../../node_modules/@nuxtjs/i18n/dist/runtime/plugins/route-locale-detect.js', () => ({
-  default: () => {},
-}))
-vi.mock('../../../node_modules/@nuxtjs/i18n/dist/runtime/plugins/switch-locale-path-ssr.js', () => ({
-  default: () => {},
-}))
-vi.mock('../../../node_modules/@nuxtjs/i18n/dist/runtime/plugins/preload.js', () => ({
-  default: () => {},
-}))
-vi.mock('../../../node_modules/@nuxtjs/device/dist/runtime/plugin.js', () => ({
-  default: () => {},
-}))
-vi.mock('../../../node_modules/nuxt-site-config/dist/runtime/app/plugins/i18n.js', () => ({
-  default: () => {},
-}))
-vi.mock('@gtm-support/vue-gtm', () => ({
-  createGtm: vi.fn(() => ({
-    install: vi.fn(),
-  })),
-}))
-
-vi.mock('vue', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('vue')>()
-  return {
-    ...actual,
-    nextTick: vi.fn().mockResolvedValue(undefined),
-  }
-})
-
-// Global utility functions for tests - range and useSlots handled by auto-imports
-
-// HTMLDialogElement mock for jsdom
-if (!global.HTMLDialogElement) {
-  global.HTMLDialogElement = class HTMLDialogElement extends HTMLElement {
-    closedBy = ''
-    open = false
-    returnValue = ''
-
-    showModal = vi.fn(() => {
-      this.open = true
-    })
-
-    close = vi.fn(() => {
-      this.open = false
-    })
-
-    show = vi.fn(() => {
-      this.open = true
-    })
-
-    requestClose = vi.fn()
-
-    override addEventListener(_event: string, _callback: (...args: unknown[]) => void) {
-      // Mock implementation
-    }
-
-    override removeEventListener(_event: string, _callback: (...args: unknown[]) => void) {
-      // Mock implementation
-    }
-  }
-}
 ````

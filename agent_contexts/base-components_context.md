@@ -378,216 +378,6 @@ const handleCloseDialog = () => emit('close')
 </style>
 ```
 
-## File: layers/base/app/components/ha/HaDialogElement.vue
-```vue
-<!--
-HaDialogとの違いとして、HaDialogElementは別階層の別要素のz-indexの影響により、それよりも下に表示されてしまう
-と言った現象が起きません(dialog要素は常に最前面に表示される)。
--->
-<template>
-  <dialog
-    ref="dialog"
-    class="ha-dialog-element"
-    :closedby
-    @click.stop
-  >
-    <component
-      :is="props.closeButtonHtmlTag"
-      ref="close"
-      class="close"
-      :aria-label="
-        i18n.locale.value === 'ja' ? `ダイアログを閉じる` : `Close the dialog`
-      "
-      @click="closeDialog"
-    >
-      <slot name="close">
-        <RiCloseLine class="icon" />
-      </slot>
-    </component>
-    <div
-      tabindex="0"
-      class="inner"
-      role="presentation"
-    >
-      <slot name="inner" />
-    </div>
-    <div
-      tabindex="0"
-      @focus="handleEndFocus"
-    ></div>
-  </dialog>
-</template>
-
-<script lang="ts" setup>
-import RiCloseLine from '~icons/ri/close-line'
-
-export type Props = {
-  closeButtonHtmlTag?: string
-  closedby: 'any' | 'closerequest' | 'none' | undefined
-}
-const props = withDefaults(defineProps<Props>(), {
-  closeButtonHtmlTag: 'button',
-})
-
-// aria-label用のi18n
-const i18n = useI18n()
-
-// dialog要素をrefにする
-const dialog = ref<HTMLDialogElement>()
-const isActive = ref(false)
-
-const emit = defineEmits<{
-  (e: 'open' | 'close'): void
-}>()
-
-// dialogを開く関数
-const openDialog = () => {
-  isActive.value = true
-  if (!dialog.value) {
-    throw new Error('dialog要素はnull (HaDialogElement openDialog)')
-  }
-  dialog.value.addEventListener('keydown', (e) => {
-    if (dialog.value?.open && e.key === 'Escape') {
-      e.stopPropagation()
-      closeDialog()
-    }
-  })
-  if (typeof dialog.value.showModal === 'function') {
-    dialog.value.showModal()
-  } else {
-    console.error('dialog要素はHTMLDialogElementではありません (HaDialogElement openDialog)')
-  }
-  dialog.value.addEventListener('close', resetPageScrolling)
-  onOpen()
-}
-
-// dialogを閉じる関数
-const closeDialog = () => {
-  if (!dialog.value) {
-    throw new Error('dialog要素はnull (HaDialogElement closeDialog)')
-  }
-  dialog.value.close()
-  onClose()
-  isActive.value = false
-}
-
-const stopPageScrolling = () => {
-  // html要素とbody要素の両方にoverflowを記述
-  document.body.style.overflow = 'hidden'
-  document.documentElement.style.overflow = 'hidden'
-}
-
-const resetPageScrolling = () => {
-  // html要素とbody要素の両方のoverflowを元に戻す
-  document.body.style.overflow = ''
-  document.documentElement.style.overflow = ''
-}
-
-const onOpen = () => {
-  stopPageScrolling()
-  emit('open')
-}
-
-const onClose = () => {
-  resetPageScrolling()
-  emit('close')
-}
-
-// ダイアログ内のフォーカスを制御する
-const close = ref<HTMLElement>()
-const handleEndFocus = () => {
-  close.value?.focus()
-}
-
-onBeforeUnmount(resetPageScrolling)
-
-defineExpose({
-  openDialog,
-  closeDialog,
-  isActive,
-})
-</script>
-
-<style lang="scss" scoped>
-@use '#base/app/assets/styles/variables' as v;
-@use '#base/app/assets/styles/mixins' as m;
-
-.open {
-  cursor: pointer;
-}
-
-.ha-dialog-element {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  translate: -50% -50%;
-
-  width: 90%;
-  max-width: initial; // dialogのデフォルトのmax-widthをリセット
-  height: max-content; // autoにすると、十分に画面縦幅がある場合でもダイアログに縦スクロールが生まれる場合がある
-  max-height: initial; // dialogのデフォルトのmax-heightをリセット
-  padding: 0; // dialogのデフォルトのpaddingをリセット
-
-  opacity: 0;
-  background-color: rgb(
-    0 0 0 / 0%
-  ); // dialogにデフォルトで指定される白の背景色を透明にする
-
-  &::backdrop {
-    cursor: pointer;
-    background-color: rgb(0 0 0 / 80%);
-  }
-
-  &[open] {
-    animation: fade-in 0.3s forwards;
-  }
-
-  > .inner {
-    overflow-y: auto;
-
-    width: 100%;
-    height: max-content;
-    max-height: 100vh; // 先祖要素にmax-contentを指定した場合、その子孫要素の単位に%を使うとwebkitで値が0になる場合があるためvhを使用
-
-    background-color: #fff;
-
-    &:focus-visible {
-      outline: none;
-    }
-  }
-
-  > .close {
-    cursor: pointer;
-
-    position: absolute;
-    top: 2%;
-    right: 2%;
-
-    aspect-ratio: 1;
-    width: 20px;
-
-    > .icon {
-      font-size: 24px;
-
-      &:deep(path) {
-        fill: v.$black;
-      }
-    }
-  }
-}
-
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-</style>
-```
-
 ## File: layers/base/app/components/ha/HaHamburger.vue
 ```vue
 <template>
@@ -4671,6 +4461,228 @@ const url = computed(() => socialShareLink.getShareUrl(props.name || '', props))
 </style>
 ```
 
+## File: layers/base/app/components/ha/HaDialogElement.vue
+```vue
+<!--
+HaDialogとの違いとして、HaDialogElementは別階層の別要素のz-indexの影響により、それよりも下に表示されてしまう
+と言った現象が起きません(dialog要素は常に最前面に表示される)。
+-->
+<template>
+  <dialog
+    ref="dialog"
+    class="ha-dialog-element"
+    :closedby
+    @click.stop
+  >
+    <component
+      :is="props.closeButtonHtmlTag"
+      ref="close"
+      class="close"
+      :aria-label="
+        i18n.locale.value === 'ja' ? `ダイアログを閉じる` : `Close the dialog`
+      "
+      @click="closeDialog"
+    >
+      <slot name="close">
+        <RiCloseLine class="icon" />
+      </slot>
+    </component>
+    <div
+      tabindex="0"
+      class="inner"
+      role="presentation"
+    >
+      <slot name="inner" />
+    </div>
+    <div
+      tabindex="0"
+      @focus="handleEndFocus"
+    ></div>
+  </dialog>
+</template>
+
+<script lang="ts" setup>
+import RiCloseLine from '~icons/ri/close-line'
+
+export type Props = {
+  closeButtonHtmlTag?: string
+  closedby: 'any' | 'closerequest' | 'none' | undefined
+}
+const props = withDefaults(defineProps<Props>(), {
+  closeButtonHtmlTag: 'button',
+})
+
+// aria-label用のi18n
+const i18n = useI18n()
+
+// dialog要素をrefにする
+const dialog = ref<HTMLDialogElement>()
+const isActive = ref(false)
+
+const emit = defineEmits<{
+  (e: 'open' | 'close'): void
+}>()
+
+// dialogを開く関数
+const openDialog = () => {
+  if (!dialog.value) {
+    throw new Error('dialog要素はnull (HaDialogElement openDialog)')
+  }
+  if (typeof dialog.value.showModal === 'function') {
+    dialog.value.showModal()
+  } else {
+    console.error('dialog要素はHTMLDialogElementではありません (HaDialogElement openDialog)')
+  }
+  isActive.value = true
+  onOpen()
+}
+
+// dialogを閉じる関数
+// 実際の状態同期(isActive / resetPageScrolling / close emit)はネイティブのcloseイベント
+// (handleNativeClose)側で行う。closedby="any"による背景クリックでの light-dismiss は
+// このcloseDialog()を経由せずブラウザが直接dialogを閉じるため、close側のロジックは
+// closeDialog経由かどうかにかかわらず必ずネイティブcloseイベントに一本化する
+const closeDialog = () => {
+  if (!dialog.value) {
+    throw new Error('dialog要素はnull (HaDialogElement closeDialog)')
+  }
+  dialog.value.close()
+}
+
+const handleNativeClose = () => {
+  isActive.value = false
+  onClose()
+}
+
+const handleKeydown = (e: KeyboardEvent) => {
+  if (dialog.value?.open && e.key === 'Escape') {
+    e.stopPropagation()
+    closeDialog()
+  }
+}
+
+const stopPageScrolling = () => {
+  // html要素とbody要素の両方にoverflowを記述
+  document.body.style.overflow = 'hidden'
+  document.documentElement.style.overflow = 'hidden'
+}
+
+const resetPageScrolling = () => {
+  // html要素とbody要素の両方のoverflowを元に戻す
+  document.body.style.overflow = ''
+  document.documentElement.style.overflow = ''
+}
+
+const onOpen = () => {
+  stopPageScrolling()
+  emit('open')
+}
+
+const onClose = () => {
+  resetPageScrolling()
+  emit('close')
+}
+
+// ダイアログ内のフォーカスを制御する
+const close = ref<HTMLElement>()
+const handleEndFocus = () => {
+  close.value?.focus()
+}
+
+onMounted(() => {
+  dialog.value?.addEventListener('keydown', handleKeydown)
+  dialog.value?.addEventListener('close', handleNativeClose)
+})
+
+onBeforeUnmount(resetPageScrolling)
+
+defineExpose({
+  openDialog,
+  closeDialog,
+  isActive,
+})
+</script>
+
+<style lang="scss" scoped>
+@use '#base/app/assets/styles/variables' as v;
+@use '#base/app/assets/styles/mixins' as m;
+
+.open {
+  cursor: pointer;
+}
+
+.ha-dialog-element {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+
+  width: 90%;
+  max-width: initial; // dialogのデフォルトのmax-widthをリセット
+  height: max-content; // autoにすると、十分に画面縦幅がある場合でもダイアログに縦スクロールが生まれる場合がある
+  max-height: initial; // dialogのデフォルトのmax-heightをリセット
+  padding: 0; // dialogのデフォルトのpaddingをリセット
+
+  opacity: 0;
+  background-color: rgb(
+    0 0 0 / 0%
+  ); // dialogにデフォルトで指定される白の背景色を透明にする
+
+  &::backdrop {
+    cursor: pointer;
+    background-color: rgb(0 0 0 / 80%);
+  }
+
+  &[open] {
+    animation: fade-in 0.3s forwards;
+  }
+
+  > .inner {
+    overflow-y: auto;
+
+    width: 100%;
+    height: max-content;
+    max-height: 100vh; // 先祖要素にmax-contentを指定した場合、その子孫要素の単位に%を使うとwebkitで値が0になる場合があるためvhを使用
+
+    background-color: #fff;
+
+    &:focus-visible {
+      outline: none;
+    }
+  }
+
+  > .close {
+    cursor: pointer;
+
+    position: absolute;
+    top: 2%;
+    right: 2%;
+
+    aspect-ratio: 1;
+    width: 20px;
+
+    > .icon {
+      font-size: 24px;
+
+      &:deep(path) {
+        fill: v.$black;
+      }
+    }
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+</style>
+```
+
 ## File: layers/base/app/components/ha/HaLink.vue
 ```vue
 <template>
@@ -4855,215 +4867,6 @@ const loading = ref(props.manual)
     height: 120px;
     max-height: 50%;
     margin: auto;
-  }
-}
-</style>
-```
-
-## File: layers/base/app/components/hm/input/HmInputFile.vue
-```vue
-<template>
-  <!-- TODO: エラーメッセージの表示をする際に、必要に応じてHmInputTextBase.vue同様の修正(DOM構造とエラーmsgのstyle)を行う -->
-  <label
-    ref="box"
-    :class="['hm-input-file', { '-dragover': isDragOver }]"
-    @dragenter.prevent="toggleDragOver(true)"
-    @dragleave.prevent="toggleDragOver(false)"
-    @dragover.prevent
-    @drop.prevent="onDrop($event)"
-  >
-    <HaBaseInput
-      ref="fileInput"
-      class="input"
-      type="file"
-      name="file"
-      :accept="accept"
-      :multiple="multiple"
-      :files="files"
-      :required="required"
-      @click="onClick"
-      @change="onChange($event)"
-    />
-    <div class="image-box">
-      <slot>
-        <div class="inner">
-          <span class="text"> Select file or drag it! </span>
-        </div>
-      </slot>
-    </div>
-  </label>
-</template>
-
-<script lang="ts" setup>
-import { z } from 'zod/v3'
-import { isValueOf } from '#base/app/utils/zod'
-
-const htmlInputElementAndFilesSchema = z.instanceof(HTMLInputElement).and(
-  z.object({
-    files: z.instanceof(FileList),
-  }),
-)
-
-type Props = {
-  required?: boolean
-  accept?: string
-  multiple?: boolean
-  propFiles?: FileList
-}
-const props = withDefaults(defineProps<Props>(), {
-  required: false,
-  accept: '',
-  multiple: false,
-  propFiles: undefined,
-})
-
-type Emits = {
-  (e: 'input:multiple' | 'input:single', files: FileList): void
-  (e: 'cancel'): void
-}
-const emit = defineEmits<Emits>()
-
-const fileInput = ref<HTMLInputElement>()
-const isDragOver = ref(false)
-const clickListener = ref<((evt: Event) => void) | null>(null)
-
-const files = computed({
-  get: () => props.propFiles,
-  set: (files?: FileList) => {
-    if (!files) return
-    if (props.multiple) {
-      emit('input:multiple', files)
-    }
-    if (!props.multiple) {
-      emit('input:single', files)
-    }
-  },
-})
-
-onMounted(() => {
-  if (!isValueOf(htmlInputElementAndFilesSchema, fileInput.value)) {
-    return
-  }
-
-  clickListener.value = () => {
-    window.onfocus = () => {
-      setTimeout(() => {
-        if (fileInput.value?.files?.length === 0) {
-          emit('cancel')
-        }
-      }, 500)
-    }
-    window.onload = null
-  }
-  fileInput.value.addEventListener('click', clickListener.value)
-})
-
-onBeforeUnmount(() => {
-  if (
-    isValueOf(htmlInputElementAndFilesSchema, fileInput.value)
-    && clickListener.value
-  ) {
-    fileInput.value.removeEventListener('click', clickListener.value)
-  }
-})
-
-const toggleDragOver = (isDragover: boolean) => {
-  isDragOver.value = isDragover
-}
-
-const onDrop = (event: DragEvent) => {
-  toggleDragOver(false)
-  if (event?.dataTransfer) {
-    files.value = event?.dataTransfer?.files
-  }
-}
-
-const onChange = (event: Event) => {
-  const target: (EventTarget & { files?: FileList }) | null = event?.target
-  if (target !== null && !(target?.files instanceof FileList)) {
-    throw new Error('Illegal. This functions is only for file input elements')
-  }
-  if (target?.files) {
-    files.value = target.files
-  }
-}
-
-const onClick = () => {
-  // todo: 同じファイルを二回開けないのでclick時空にする
-  if (fileInput.value instanceof HTMLInputElement) {
-    fileInput.value.value = ''
-  }
-}
-</script>
-
-<style lang="scss" scoped>
-@use '#base/app/assets/styles/mixins' as m;
-@use '#base/app/assets/styles/variables' as v;
-
-.hm-input-file {
-  cursor: pointer;
-  align-items: center;
-  width: 100%;
-  height: 100%;
-
-  &.-dragover {
-    cursor: pointer;
-    opacity: 0.8;
-  }
-
-  &:hover {
-    opacity: 0.7;
-  }
-
-  @include m.sp {
-    &:hover {
-      opacity: inherit;
-    }
-
-    &:active {
-      opacity: 0.7;
-    }
-  }
-
-  > .input {
-    display: none;
-    width: 0;
-    height: 0;
-    visibility: hidden;
-  }
-
-  > .error {
-    display: block;
-
-    width: fit-content;
-
-    font-size: 10px;
-    font-weight: 400;
-    color: v.$red;
-  }
-}
-
-.image-box {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  width: 100%;
-  height: 100%;
-
-  > .inner {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    width: 100%;
-    height: 100%;
-
-    background-color: #d5d5d5;
-  }
-
-  > .inner > .text {
-    color: v.$base-font-color;
   }
 }
 </style>
@@ -5317,6 +5120,215 @@ const slots = useSlots()
 
 const DefaultSlot = () => h(Fragment, {}, slots.default?.())
 </script>
+```
+
+## File: layers/base/app/components/hm/input/HmInputFile.vue
+```vue
+<template>
+  <!-- TODO: エラーメッセージの表示をする際に、必要に応じてHmInputTextBase.vue同様の修正(DOM構造とエラーmsgのstyle)を行う -->
+  <label
+    ref="box"
+    :class="['hm-input-file', { '-dragover': isDragOver }]"
+    @dragenter.prevent="toggleDragOver(true)"
+    @dragleave.prevent="toggleDragOver(false)"
+    @dragover.prevent
+    @drop.prevent="onDrop($event)"
+  >
+    <HaBaseInput
+      ref="fileInput"
+      class="input"
+      type="file"
+      name="file"
+      :accept="accept"
+      :multiple="multiple"
+      :files="files"
+      :required="required"
+      @click="onClick"
+      @change="onChange($event)"
+    />
+    <div class="image-box">
+      <slot>
+        <div class="inner">
+          <span class="text"> Select file or drag it! </span>
+        </div>
+      </slot>
+    </div>
+  </label>
+</template>
+
+<script lang="ts" setup>
+import { z } from 'zod/v3'
+import { isValueOf } from '#base/app/utils/zod'
+
+const htmlInputElementAndFilesSchema = z.instanceof(HTMLInputElement).and(
+  z.object({
+    files: z.instanceof(FileList),
+  }),
+)
+
+type Props = {
+  required?: boolean
+  accept?: string
+  multiple?: boolean
+  propFiles?: FileList
+}
+const props = withDefaults(defineProps<Props>(), {
+  required: false,
+  accept: '',
+  multiple: false,
+  propFiles: undefined,
+})
+
+type Emits = {
+  (e: 'input:multiple' | 'input:single', files: FileList): void
+  (e: 'cancel'): void
+}
+const emit = defineEmits<Emits>()
+
+const fileInput = ref<HTMLInputElement>()
+const isDragOver = ref(false)
+const clickListener = ref<((evt: Event) => void) | null>(null)
+
+const files = computed({
+  get: () => props.propFiles,
+  set: (files?: FileList) => {
+    if (!files) return
+    if (props.multiple) {
+      emit('input:multiple', files)
+    }
+    if (!props.multiple) {
+      emit('input:single', files)
+    }
+  },
+})
+
+onMounted(() => {
+  if (!isValueOf(htmlInputElementAndFilesSchema, fileInput.value)) {
+    return
+  }
+
+  clickListener.value = () => {
+    window.onfocus = () => {
+      setTimeout(() => {
+        if (fileInput.value?.files?.length === 0) {
+          emit('cancel')
+        }
+      }, 500)
+    }
+    window.onload = null
+  }
+  fileInput.value.addEventListener('click', clickListener.value)
+})
+
+onBeforeUnmount(() => {
+  if (
+    isValueOf(htmlInputElementAndFilesSchema, fileInput.value)
+    && clickListener.value
+  ) {
+    fileInput.value.removeEventListener('click', clickListener.value)
+  }
+})
+
+const toggleDragOver = (isDragover: boolean) => {
+  isDragOver.value = isDragover
+}
+
+const onDrop = (event: DragEvent) => {
+  toggleDragOver(false)
+  if (event?.dataTransfer) {
+    files.value = event?.dataTransfer?.files
+  }
+}
+
+const onChange = (event: Event) => {
+  const target: (EventTarget & { files?: FileList }) | null = event?.target
+  if (target !== null && !(target?.files instanceof FileList)) {
+    throw new Error('Illegal. This functions is only for file input elements')
+  }
+  if (target?.files) {
+    files.value = target.files
+  }
+}
+
+const onClick = () => {
+  // todo: 同じファイルを二回開けないのでclick時空にする
+  if (fileInput.value instanceof HTMLInputElement) {
+    fileInput.value.value = ''
+  }
+}
+</script>
+
+<style lang="scss" scoped>
+@use '#base/app/assets/styles/mixins' as m;
+@use '#base/app/assets/styles/variables' as v;
+
+.hm-input-file {
+  cursor: pointer;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+
+  &.-dragover {
+    cursor: pointer;
+    opacity: 0.8;
+  }
+
+  &:hover {
+    opacity: 0.7;
+  }
+
+  @include m.sp {
+    &:hover {
+      opacity: inherit;
+    }
+
+    &:active {
+      opacity: 0.7;
+    }
+  }
+
+  > .input {
+    display: none;
+    width: 0;
+    height: 0;
+    visibility: hidden;
+  }
+
+  > .error {
+    display: block;
+
+    width: fit-content;
+
+    font-size: 10px;
+    font-weight: 400;
+    color: v.$red;
+  }
+}
+
+.image-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 100%;
+  height: 100%;
+
+  > .inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 100%;
+    height: 100%;
+
+    background-color: #d5d5d5;
+  }
+
+  > .inner > .text {
+    color: v.$base-font-color;
+  }
+}
+</style>
 ```
 
 ## File: layers/base/app/components/hm/HmSlider.vue
