@@ -25,7 +25,15 @@ describe('HaVideo', () => {
     expect(wrapper.find('video').exists()).toBe(true)
     expect(wrapper.getCurrentComponent()).toBeTruthy()
     expect(wrapper.get('video').element.hasAttribute('playsinline')).toBe(false)
+    expect(wrapper.get('video').element.hasAttribute('disablepictureinpicture')).toBe(false)
+    expect(wrapper.get('video').element.hasAttribute('disableremoteplayback')).toBe(false)
     expect(wrapper.html()).toMatchSnapshot()
+  })
+
+  test('adds disablepictureinpicture when enabled', () => {
+    const wrapper = mount(HaVideo, { props: { src: '', disablepictureinpicture: true } })
+
+    expect(wrapper.get('video').element.hasAttribute('disablepictureinpicture')).toBe(true)
   })
 
   test('adds playsinline only when enabled', () => {
@@ -67,6 +75,7 @@ describe('HaVideo', () => {
     expect(videoElement.controls).toBe(true)
     expect(wrapper.props('disablepictureinpicture')).toBe(false)
     expect(wrapper.props('disableremoteplayback')).toBe(true)
+    expect(videoElement.hasAttribute('disableremoteplayback')).toBe(true)
     expect(wrapper.get('video').attributes('x-webkit-airplay')).toBe('deny')
     expect(videoElement.loop).toBe(false)
     expect(videoElement.muted).toBe(false)
