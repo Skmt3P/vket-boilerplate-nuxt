@@ -734,7 +734,7 @@ export default defineNuxtConfig({
   "private": true,
   "type": "module",
   "version": "1.0.1",
-  "packageManager": "bun@1.4.3",
+  "packageManager": "bun@1.4.4",
   "scripts": {
     "postinstall": "if [ -x ../base/node_modules/.bin/nuxt ]; then ../base/node_modules/.bin/nuxt prepare; elif command -v nuxt >/dev/null 2>&1; then nuxt prepare; else echo 'skip nuxt prepare: nuxt not installed'; fi",
     "dev": "cross-env VITE_OUTPUT_ENV=\"$target\" nuxt dev",
@@ -757,7 +757,7 @@ export default defineNuxtConfig({
     "test:ui": "cmd='vitest --ui --dir ./app/test' bun exec-test",
     "test:coverage": "cmd='vitest run --dir ./app/test --coverage' bun exec-test",
     "exec-test": "baseDir='./app/test' ext='\\.spec\\.ts' bun exec-if-file-exists",
-    "exec-if-file-exists": "if [ \"$(find $baseDir | grep \"${ext}$\" | wc -l)\" -gt 0 ]; then $cmd; else true; fi",
+    "exec-if-file-exists": "if [ \"$(find $baseDir | grep \"${ext}$\" | wc -l)\" -gt 0 ]; then $cmd; else echo \"skipped: no ${ext} under $baseDir\" >&2; fi",
     "package-update": "bunx npm-check-updates -i",
     "clean-install": "bun run ../../scripts/clean_install.js",
     "allclean-install": "bun run ../../scripts/clean_install.js all"
